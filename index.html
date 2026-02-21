@@ -1854,6 +1854,16 @@
       </div>
     </div>
     <script>
+            (function autoUpdateCache() {
+        const currentAppVersion = "3";
+        const savedAppVersion = localStorage.getItem("indentMakerVersion");
+
+        if (savedAppVersion !== currentAppVersion) {
+          localStorage.setItem("indentMakerVersion", currentAppVersion);
+          const newUrl = window.location.pathname + "?v=" + currentAppVersion;
+          window.location.replace(newUrl);
+        }
+      })();
       const rawData = `
 ARISHTASAVAM	ABAYARISHTAM 200ML	25
 ARISHTASAVAM	ABAYARISHTAM 450ML	50
