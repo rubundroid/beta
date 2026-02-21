@@ -3763,7 +3763,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
                 <td style="text-align: center;">${indexCount}</td>
                 <td class="med-name" style="padding-left: 15px;">${name}</td>
                 <td style="text-align: center;">
-              <input type="number" class="qty-input" placeholder="Qty" min="0" step="1" inputmode="numeric" pattern="[0-9]*" onkeydown="if(['.', 'e', 'E', '+', '-'].includes(event.key)) event.preventDefault();" oninput="if(this.value.length > 1 && this.value.startsWith('0')) this.value = parseInt(this.value, 10); updateRow(this); saveDraft()">
+             <input type="text" class="qty-input" placeholder="Qty" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(this.value.length > 1 && this.value.startsWith('0')) this.value = parseInt(this.value, 10); updateRow(this); saveDraft()">
                 </td>
                 <td style="text-align: right; padding-right: 10px;">${rateWithGST.toFixed(2)}</td>
                 <td class="row-cost" style="text-align: right; font-weight: bold; padding-right: 10px;">0.00</td>
