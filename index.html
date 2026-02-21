@@ -3217,10 +3217,13 @@ KC	ARAGWADI KC 1 KG	1007
 KC	ARAGWADI KC 100GM	105
 KC	ARAGWADI KC 250GM	256
 KC	ARAGWADI KC 500GM	508
+KC	ASTAVARGAM  KC 2KG	360
 KC	ASTAVARGAM  KC 500GM	90
+KC	BHADRADARVADI  KC 2.5KG	382
 KC	BHADRADARVADI  KC 1 KG	191
 KC	BHADRADARVADI  KC 250GM	49
 KC	BHADRADARVADI  KC 500GM	97
+KC	BRAHATHYADI  KC 2KG	308
 KC	BRAHATHYADI  KC 1KG	154
 KC	BRAHATHYADI  KC 250GM	40
 KC	BRAHATHYADI  KC 500GM	78
@@ -3234,9 +3237,11 @@ KC	DASAMOOLAKADUTHRAYAM  KC 250GM	55
 KC	DASAMOOLAKADUTHRAYAM  KC 500GM	108
 KC	DASAMOOLAM  KC 2KG	266
 KC	DASAMOOLAM  KC 1KG	133
+KC	DHANWANTHARAM  KC 2KG	376
 KC	DHANWANTHARAM  KC 1KG	188
 KC	DHANWANTHARAM  KC 250GM	48
 KC	DHANWANTHARAM  KC 500GM	95
+KC	DRAKSHADI  KC 2.5KG	1572.5
 KC	DRAKSHADI  KC 1KG	629
 KC	DRAKSHADI  KC 250GM	159
 KC	DRAKSHADI  KC 500GM	316
@@ -3244,6 +3249,7 @@ KC	ELAKANADI  KC 2.5KG	977.5
 KC	ELAKANADI  KC 1KG	391
 KC	ELAKANADI  KC 250GM	99
 KC	ELAKANADI  KC 500GM	197
+KC	GANDHARVAHASTHADI  KC 2.5KG	477.5
 KC	GANDHARVAHASTHADI  KC 1KG	191
 KC	GANDHARVAHASTHADI  KC 250GM	49
 KC	GANDHARVAHASTHADI  KC 500GM	97
@@ -3252,6 +3258,7 @@ KC	GOJIHWADI  KC 1KG	246
 KC	GOJIHWADI  KC 250GM	63
 KC	GOJIHWADI  KC 500GM	125
 KC	GULGULUTHIKTHAKAM  KC 500GM	139
+KC	GULUCHYADI  KC 2.5KG	430
 KC	GULUCHYADI  KC 1KG	172
 KC	GULUCHYADI  KC 250GM	45
 KC	GULUCHYADI  KC 500GM	88
@@ -3265,6 +3272,7 @@ KC	MAHARASNADI  KC 2.5KG	647.5
 KC	MAHARASNADI  KC 1KG	259
 KC	MAHARASNADI  KC 250GM	67
 KC	MAHARASNADI  KC 500GM	131
+KC	MANJISHTYADI  KC 3KG	621
 KC	MANJISHTYADI  KC 1KG	207
 KC	MANJISHTYADI  KC 250GM	53
 KC	MANJISHTYADI  KC 500GM	105
@@ -3296,9 +3304,11 @@ KC	NISAKATHAKADI  KC 2.5KG	477.5
 KC	NISAKATHAKADI  KC 1KG	191
 KC	NISAKATHAKADI  KC 250GM	49
 KC	NISAKATHAKADI  KC 500GM	97
+KC	PADOLADIGANAM  KC 2KG	1904
 KC	PADOLADIGANAM  KC 1KG	952
 KC	PADOLADIGANAM  KC 250GM	239
 KC	PADOLADIGANAM  KC 500GM	477
+KC	PANCHATHIKTHAKAM  KC 2KG	382
 KC	PANCHATHIKTHAKAM  KC 1KG	191
 KC	PANCHATHIKTHAKAM  KC 250GM	49
 KC	PANCHATHIKTHAKAM  KC 500GM	97
@@ -3315,6 +3325,7 @@ KC	PHALATHRIKADI  KC 100GM	32
 KC	PHALATHRIKADI  KC 1KG	300
 KC	PHALATHRIKADI  KC 500GM	152
 KC	PRASARANYADI  KC 500GM	116
+KC	PUNARNAVADI  KC 2.5KG	500
 KC	PUNARNAVADI  KC 1KG	200
 KC	PUNARNAVADI  KC 250GM	52
 KC	PUNARNAVADI  KC 500GM	102
@@ -3328,6 +3339,7 @@ KC	RASNERANDADI  KC 500GM	122
 KC	SAHACHARADI  KC 1KG	217
 KC	SAHACHARADI  KC 500GM	110
 KC	SAHACHARADI  KC 50GM	56
+KC	SAPTASARAM  KC 2.5KG	430
 KC	SAPTASARAM  KC 1KG	172
 KC	SAPTASARAM  KC 250GM	45
 KC	SAPTASARAM  KC 500GM	88
@@ -3751,7 +3763,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
                 <td style="text-align: center;">${indexCount}</td>
                 <td class="med-name" style="padding-left: 15px;">${name}</td>
                 <td style="text-align: center;">
-                    <input type="number" class="qty-input" placeholder="Qty" min="0" oninput="updateRow(this); saveDraft()">
+                <input type="number" class="qty-input" placeholder="Qty" min="0" step="1" onkeydown="if(['.', 'e', 'E', '+', '-'].includes(event.key)) event.preventDefault();" oninput="if(this.value.length > 1 && this.value.startsWith('0')) this.value = parseInt(this.value, 10); updateRow(this); saveDraft()">
                 </td>
                 <td style="text-align: right; padding-right: 10px;">${rateWithGST.toFixed(2)}</td>
                 <td class="row-cost" style="text-align: right; font-weight: bold; padding-right: 10px;">0.00</td>
@@ -4646,7 +4658,10 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
         const draftData = {};
         const inputs = document.querySelectorAll(".qty-input");
         inputs.forEach((input, index) => {
-          if (input.value && parseFloat(input.value) > 0) {
+          // parseFloat മാറ്റി parseInt ആക്കി മാറ്റുന്നു
+          let qty = parseInt(input.value);
+
+          if (qty && qty > 0) {
             const row = input.closest("tr");
             const nameCell = row.querySelector(".med-name");
             let cleanName = nameCell.childNodes[0].textContent
@@ -4654,7 +4669,9 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
               .replace(/🗑️/g, "")
               .replace(/\*/g, "")
               .trim();
-            draftData[cleanName] = input.value;
+
+            // കുത്തോ മറ്റോ അബദ്ധത്തിൽ അടിച്ചാലും അത് പൂർണ്ണസംഖ്യയായി മാത്രം സേവ് ആകും
+            draftData[cleanName] = qty.toString();
           }
         });
         const info = {
