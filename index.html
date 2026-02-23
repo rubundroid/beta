@@ -1855,7 +1855,7 @@
     </div>
     <script>
       (function autoUpdateCache() {
-        const currentAppVersion = "3.1";
+        const currentAppVersion = "3.2";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
@@ -5349,63 +5349,190 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
           limit++;
         }
 
+        // ==================================================
+        // ഭാഗം 5: ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാനുള്ള സ്മാർട്ട് ലോജിക് (100% Fixed)
+        // ==================================================
         let finalDiff = targetPaise - currentTotalPaise;
-        if (finalDiff > 500) {
-          Swal.close();
-          let matchingMedicines = unselected
-            .filter((i) => i.ratePaise <= finalDiff)
-            .sort((a, b) => b.ratePaise - a.ratePaise);
 
-          if (matchingMedicines.length > 0) {
-            let topSuggestions = matchingMedicines.slice(0, 10);
-            let optionsObj = {};
-            topSuggestions.forEach((item, index) => {
-              // --- പുതിയ മാറ്റം: പേരിനൊപ്പമുള്ള ഐക്കണുകൾ ഒഴിവാക്കുന്നു ---
-              let cleanName = item.name
+        if (finalDiff > 50) {
+          Swal.close();
+
+          let swapOptions = [];
+          let sortedSelected = selected
+            .filter((i) => i.qty > 0)
+            .sort((a, b) => a.ratePaise - b.ratePaise);
+
+          // 1. സ്മാർട്ട് സ്വാപ്പ്: വില കുറഞ്ഞ മരുന്നിനോട് ഗ്യാപ്പ് കൂട്ടിയാൽ കിട്ടുന്ന തുകയ്ക്ക് പുറത്ത് മരുന്നുണ്ടോ എന്ന് തപ്പുന്നു
+          for (let sItem of sortedSelected) {
+            let targetRate = sItem.ratePaise + finalDiff;
+            // കൃത്യം ആ തുകയോ, അല്ലെങ്കിൽ പരമാവധി 50 പൈസയുടെ വ്യത്യാസത്തിൽ നിൽക്കുന്നതോ ആയ മരുന്നുകൾ (Tolerance)
+            let exactMatches = unselected.filter(
+              (u) => Math.abs(u.ratePaise - targetRate) <= 50,
+            );
+            exactMatches.forEach((match) => {
+              swapOptions.push({ add: match, remove: sItem });
+            });
+          }
+
+          if (swapOptions.length > 0) {
+            // --- സ്മാർട്ട് സ്വാപ്പ് കിട്ടി! ---
+            if (swapOptions.length === 1) {
+              let opt = swapOptions[0];
+              let cleanAdd = opt.add.name
+                .replace(/✏️/g, "")
+                .replace(/🗑️/g, "")
+                .replace(/\*/g, "")
+                .trim();
+              let cleanRem = opt.remove.name
                 .replace(/✏️/g, "")
                 .replace(/🗑️/g, "")
                 .replace(/\*/g, "")
                 .trim();
 
-              // item.name ന് പകരം നമ്മൾ ക്ലീൻ ചെയ്ത cleanName കൊടുക്കുന്നു
-              optionsObj[index] =
-                `${cleanName} - ₹ ${(item.ratePaise / 100).toFixed(2)}`;
-            });
+              const res = await Swal.fire({
+                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ബജറ്റ് പരമാവധി ഉപയോഗിക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "അതെ, മാറ്റം വരുത്തുക",
+                cancelButtonText: "വേണ്ട",
+              });
 
-            const result = await Swal.fire({
-              title: "ബജറ്റ് ഗ്യാപ്പ്!",
-              html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>ചേർക്കേണ്ട മരുന്ന് തിരഞ്ഞെടുക്കുക:`,
-              icon: "question",
-              input: "select",
-              inputOptions: optionsObj,
-              inputPlaceholder: "ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക...",
-              showCancelButton: true,
-              confirmButtonText: "ചേർക്കൂ",
-              cancelButtonText: "വേണ്ട",
-              inputValidator: (value) => {
-                if (!value) return "ദയവായി ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക!";
-              },
-            });
+              if (res.isConfirmed) {
+                opt.remove.qty--;
+                opt.add.oldQty = 0;
+                opt.add.qty = 1;
+                selected.push(opt.add);
+                // മരുന്നുകളുടെ കൃത്യമായ വില വെച്ച് കാൽക്കുലേറ്റ് ചെയ്യുന്നു
+                currentTotalPaise =
+                  currentTotalPaise - opt.remove.ratePaise + opt.add.ratePaise;
+              }
+            } else {
+              let optionsObj = {};
+              swapOptions.slice(0, 15).forEach((opt, index) => {
+                let cleanAdd = opt.add.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+                let cleanRem = opt.remove.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+                optionsObj[index] =
+                  `${cleanAdd} (പകരം 1 ${cleanRem} ഒഴിവാക്കും)`;
+              });
 
-            Swal.fire({
-              title: "ബജറ്റ് ക്രമീകരിക്കുന്നു...",
-              allowOutsideClick: false,
-              didOpen: () => {
-                Swal.showLoading();
-              },
-            });
+              const res = await Swal.fire({
+                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ബജറ്റ് പരമാവധി ഉപയോഗിക്കാം:`,
+                icon: "success",
+                input: "select",
+                inputOptions: optionsObj,
+                inputPlaceholder: "ഏറ്റവും അനുയോജ്യമായത് തിരഞ്ഞെടുക്കുക...",
+                showCancelButton: true,
+                confirmButtonText: "ചേർത്ത് അഡ്ജസ്റ്റ് ചെയ്യുക",
+                cancelButtonText: "വേണ്ട",
+                inputValidator: (value) => {
+                  if (!value) return "ദയവായി ഒരെണ്ണം തിരഞ്ഞെടുക്കുക!";
+                },
+              });
 
-            if (result.isConfirmed && result.value) {
-              let suggestion = topSuggestions[result.value];
-              suggestion.oldQty = 0; // പുതിയ മരുന്നിന് പഴയ എണ്ണം 0 ആണ്
-              let addQty = Math.floor(finalDiff / suggestion.ratePaise);
-              suggestion.qty = addQty;
-              currentTotalPaise += addQty * suggestion.ratePaise;
-              selected.push(suggestion);
+              if (res.isConfirmed && res.value) {
+                let chosen = swapOptions[res.value];
+                chosen.remove.qty--;
+                chosen.add.oldQty = 0;
+                chosen.add.qty = 1;
+                selected.push(chosen.add);
+                currentTotalPaise =
+                  currentTotalPaise -
+                  chosen.remove.ratePaise +
+                  chosen.add.ratePaise;
+              }
             }
-            await new Promise((r) => setTimeout(r, 400));
+          } else {
+            // --- 2. സ്മാർട്ട് സ്വാപ്പ് കിട്ടിയില്ലെങ്കിൽ സാധാരണ പോലെ ചേർക്കാൻ ---
+            let exactMatchingMedicines = [];
+
+            // പുതിയ മാറ്റം: ഗ്യാപ്പ് തുകയെ മരുന്നിന്റെ വില വെച്ച് ഹരിച്ച്, ഒന്നോ അതിലധികമോ എണ്ണം ചേർത്താൽ
+            // ഗ്യാപ്പ് 50 പൈസയ്ക്ക് താഴെ വരുമോ എന്ന് പരിശോധിക്കുന്നു (Multiple Quantities Allowed!)
+            unselected.forEach((u) => {
+              let addQty = Math.round(finalDiff / u.ratePaise);
+              if (addQty > 0) {
+                let remainingGap = Math.abs(finalDiff - u.ratePaise * addQty);
+                if (remainingGap <= 50) {
+                  // 50 പൈസയ്ക്ക് താഴെ മാത്രം വ്യത്യാസം വന്നാൽ പെർഫെക്റ്റ് മാച്ച് ആണ്!
+                  exactMatchingMedicines.push({ item: u, qty: addQty });
+                }
+              }
+            });
+
+            if (exactMatchingMedicines.length > 0) {
+              if (exactMatchingMedicines.length === 1) {
+                let matchInfo = exactMatchingMedicines[0];
+                let cleanName = matchInfo.item.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+
+                const res = await Swal.fire({
+                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാം!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br> ഈ തുകയ്ക്കുള്ള <b>${matchInfo.qty} എണ്ണം ${cleanName}</b> ചേർക്കട്ടെ?`,
+                  icon: "question",
+                  showCancelButton: true,
+                  confirmButtonText: "അതെ, ചേർക്കുക",
+                  cancelButtonText: "വേണ്ട",
+                });
+                if (res.isConfirmed) {
+                  matchInfo.item.oldQty = 0;
+                  matchInfo.item.qty = matchInfo.qty;
+                  currentTotalPaise += matchInfo.item.ratePaise * matchInfo.qty;
+                  selected.push(matchInfo.item);
+                }
+              } else {
+                let optionsObj = {};
+                exactMatchingMedicines.forEach((matchInfo, index) => {
+                  let cleanName = matchInfo.item.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  let totalCost =
+                    (matchInfo.item.ratePaise * matchInfo.qty) / 100;
+                  optionsObj[index] =
+                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)}`;
+                });
+
+                const res = await Swal.fire({
+                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ്!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br> ഈ തുകയ്ക്കുള്ള മരുന്ന് തിരഞ്ഞെടുക്കുക:`,
+                  icon: "question",
+                  input: "select",
+                  inputOptions: optionsObj,
+                  inputPlaceholder: "ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക...",
+                  showCancelButton: true,
+                  confirmButtonText: "ചേർക്കൂ",
+                  cancelButtonText: "വേണ്ട",
+                  inputValidator: (value) => {
+                    if (!value) return "ദയവായി ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക!";
+                  },
+                });
+
+                if (res.isConfirmed && res.value) {
+                  let suggestion = exactMatchingMedicines[res.value];
+                  suggestion.item.oldQty = 0;
+                  suggestion.item.qty = suggestion.qty;
+                  currentTotalPaise +=
+                    suggestion.item.ratePaise * suggestion.qty;
+                  selected.push(suggestion.item);
+                }
+              }
+            }
           }
         }
+        // ==================================================
 
         // ==================================================
         // ഓർഡർ സമ്മറി റിപ്പോർട്ട് നിർമ്മിക്കുന്നു
