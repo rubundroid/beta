@@ -5354,7 +5354,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
         // ==================================================
         let finalDiff = targetPaise - currentTotalPaise;
 
-        if (finalDiff > 50) {
+        if (finalDiff > 51) {
           Swal.close();
 
           let swapOptions = [];
@@ -5545,12 +5545,14 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
         finalSelected.forEach((item) => {
           let isChanged = item.qty !== item.oldQty;
           let changeIndicator = "";
+          // എത്ര എണ്ണം കൂടിയെന്നും കുറഞ്ഞെന്നും കണ്ടുപിടിക്കുന്നു
+          let qtyDiff = Math.abs(item.qty - item.oldQty);
 
-          // കൂടിയാൽ പച്ച, കുറഞ്ഞാൽ ചുവപ്പ് അമ്പടയാളം
+          // കൂടിയാൽ പച്ച, കുറഞ്ഞാൽ ചുവപ്പ് നിറത്തിൽ എണ്ണവും അമ്പടയാളവും
           if (item.qty > item.oldQty) {
-            changeIndicator = ` <span style="color: #27ae60; font-size: 14px; font-weight: bold;">(↑)</span>`;
+            changeIndicator = ` <span style="color: #27ae60; font-size: 13px; font-weight: bold;">(+${qtyDiff} ↑)</span>`;
           } else if (item.qty < item.oldQty) {
-            changeIndicator = ` <span style="color: #e74c3c; font-size: 14px; font-weight: bold;">(↓)</span>`;
+            changeIndicator = ` <span style="color: #e74c3c; font-size: 13px; font-weight: bold;">(-${qtyDiff} ↓)</span>`;
           }
 
           // മാറ്റം വന്ന വരികൾക്ക് ഇളം മഞ്ഞ നിറം നൽകുന്നു
