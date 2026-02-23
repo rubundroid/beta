@@ -5459,14 +5459,29 @@
             let exactMatchingMedicines = [];
 
             unselected.forEach((u) => {
-              // പഴയ Math.floor മാറ്റി Math.round ആക്കുന്നു (എങ്കിലേ മുകളിലേക്കും 49 പൈസ നോക്കുകയുള്ളൂ)
-              let addQty = Math.round(finalDiff / u.ratePaise);
+              // ഒന്നാമത്തെ ഓപ്ഷൻ: ബഡ്ജറ്റിനുള്ളിൽ കൃത്യമായി നിൽക്കുന്ന എണ്ണം (ഇതിൽ പൈസ ബാക്കി വരും)
+              let addQty = Math.floor(finalDiff / u.ratePaise);
               if (addQty > 0) {
                 let remainingGap = finalDiff - u.ratePaise * addQty;
                 exactMatchingMedicines.push({
                   item: u,
                   qty: addQty,
                   gapAfter: remainingGap,
+                });
+              }
+
+              // രണ്ടാമത്തെ ഓപ്ഷൻ: ഒരെണ്ണം കൂടി കൂടുതൽ ചേർത്താൽ (ബഡ്ജറ്റ് കവിയുമോ എന്ന് നോക്കാൻ)
+              let addQtyUp = addQty + 1;
+              let overGap = finalDiff - u.ratePaise * addQtyUp;
+
+              // --- മാജിക് ലോക്ക് ---
+              // ബഡ്ജറ്റ് കവിയുന്നത് 49 പൈസയോ അതിൽ താഴെയോ ആണെങ്കിൽ മാത്രം അതും ഒരു ഓപ്ഷൻ ആക്കുന്നു!
+              // (അതായത് ഒരു കാരണവശാലും 49 പൈസയിൽ കൂടുതൽ മുകളിലേക്ക് പോകില്ല)
+              if (overGap >= -49 && overGap < 0) {
+                exactMatchingMedicines.push({
+                  item: u,
+                  qty: addQtyUp,
+                  gapAfter: overGap,
                 });
               }
             });
@@ -5479,8 +5494,6 @@
             if (exactMatchingMedicines.length > 0) {
               let topMatches = exactMatchingMedicines.slice(0, 15);
 
-              // --- സാർ ചോദിച്ച മാറ്റം ഇവിടെയാണ്! ---
-              // താഴേക്ക് പരമാവധി 50 പൈസ (<= 50) ഉം, മുകളിലേക്ക് പരമാവധി 49 പൈസയും (>= -49)
               if (
                 topMatches.length === 1 &&
                 topMatches[0].gapAfter <= 50 &&
@@ -5517,8 +5530,18 @@
                     .trim();
                   let totalCost =
                     (matchInfo.item.ratePaise * matchInfo.qty) / 100;
+
+                  // --- പുതിയ മാറ്റം: മെസ്സേജ് കൃത്യമാക്കുന്നു ---
+                  let gapText = "";
+                  if (matchInfo.gapAfter < 0) {
+                    // ബഡ്ജറ്റിന് മുകളിലാണെങ്കിൽ മൈനസ് കാണിക്കാതെ വ്യക്തമായി എഴുതുന്നു
+                    gapText = `ബഡ്ജറ്റിന് മുകളിൽ ₹ ${(Math.abs(matchInfo.gapAfter) / 100).toFixed(2)}`;
+                  } else {
+                    gapText = `ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)}`;
+                  }
+
                   optionsObj[index] =
-                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (ചേർത്താൽ ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)})`;
+                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (${gapText})`;
                 });
 
                 const res = await Swal.fire({
