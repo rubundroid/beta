@@ -5354,7 +5354,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
         // ==================================================
         let finalDiff = targetPaise - currentTotalPaise;
 
-        if (finalDiff > 51) {
+        if (finalDiff > 50) {
           Swal.close();
 
           let swapOptions = [];
@@ -5367,7 +5367,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
             let targetRate = sItem.ratePaise + finalDiff;
             // കൃത്യം ആ തുകയോ, അല്ലെങ്കിൽ പരമാവധി 50 പൈസയുടെ വ്യത്യാസത്തിൽ നിൽക്കുന്നതോ ആയ മരുന്നുകൾ (Tolerance)
             let exactMatches = unselected.filter(
-              (u) => Math.abs(u.ratePaise - targetRate) <= 50,
+              (u) => Math.abs(u.ratePaise - targetRate) <= 49,
             );
             exactMatches.forEach((match) => {
               swapOptions.push({ add: match, remove: sItem });
@@ -5461,7 +5461,7 @@ THAILAM	VILLYAMPACHOTTYADI THAILAM 450ML	196
               let addQty = Math.round(finalDiff / u.ratePaise);
               if (addQty > 0) {
                 let remainingGap = Math.abs(finalDiff - u.ratePaise * addQty);
-                if (remainingGap <= 50) {
+                if (remainingGap <= 49) {
                   // 50 പൈസയ്ക്ക് താഴെ മാത്രം വ്യത്യാസം വന്നാൽ പെർഫെക്റ്റ് മാച്ച് ആണ്!
                   exactMatchingMedicines.push({ item: u, qty: addQty });
                 }
