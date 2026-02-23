@@ -5350,24 +5350,25 @@
         }
 
         // ==================================================
-        // ഭാഗം 5: ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാനുള്ള സ്മാർട്ട് ലോജിക് (100% Fixed)
+        // ഭാഗം 5: ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാനുള്ള സ്മാർട്ട് ലോജിക് (അന്തിമ രൂപം)
         // ==================================================
         let finalDiff = targetPaise - currentTotalPaise;
 
         if (finalDiff > 50) {
+          // ഗ്യാപ്പ് 50 പൈസയ്ക്ക് മുകളിലാണെങ്കിൽ
           Swal.close();
 
+          // 1. ആദ്യം സാറിന്റെ ആ 'സ്മാർട്ട് സ്വാപ്പ്' മാജിക് പരീക്ഷിക്കുന്നു!
           let swapOptions = [];
           let sortedSelected = selected
             .filter((i) => i.qty > 0)
             .sort((a, b) => a.ratePaise - b.ratePaise);
 
-          // 1. സ്മാർട്ട് സ്വാപ്പ്: വില കുറഞ്ഞ മരുന്നിനോട് ഗ്യാപ്പ് കൂട്ടിയാൽ കിട്ടുന്ന തുകയ്ക്ക് പുറത്ത് മരുന്നുണ്ടോ എന്ന് തപ്പുന്നു
           for (let sItem of sortedSelected) {
             let targetRate = sItem.ratePaise + finalDiff;
-            // കൃത്യം ആ തുകയോ, അല്ലെങ്കിൽ പരമാവധി 50 പൈസയുടെ വ്യത്യാസത്തിൽ നിൽക്കുന്നതോ ആയ മരുന്നുകൾ (Tolerance)
+            // കൃത്യം ആ തുകയോ, അല്ലെങ്കിൽ പരമാവധി 50 പൈസ വ്യത്യാസത്തിലോ നിൽക്കുന്നവ
             let exactMatches = unselected.filter(
-              (u) => Math.abs(u.ratePaise - targetRate) <= 49,
+              (u) => Math.abs(u.ratePaise - targetRate) <= 50,
             );
             exactMatches.forEach((match) => {
               swapOptions.push({ add: match, remove: sItem });
@@ -5391,7 +5392,7 @@
 
               const res = await Swal.fire({
                 title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ബജറ്റ് പരമാവധി ഉപയോഗിക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂർണ്ണമായും പൂജ്യമാക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
                 icon: "question",
                 showCancelButton: true,
                 confirmButtonText: "അതെ, മാറ്റം വരുത്തുക",
@@ -5403,7 +5404,6 @@
                 opt.add.oldQty = 0;
                 opt.add.qty = 1;
                 selected.push(opt.add);
-                // മരുന്നുകളുടെ കൃത്യമായ വില വെച്ച് കാൽക്കുലേറ്റ് ചെയ്യുന്നു
                 currentTotalPaise =
                   currentTotalPaise - opt.remove.ratePaise + opt.add.ratePaise;
               }
@@ -5426,7 +5426,7 @@
 
               const res = await Swal.fire({
                 title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ബജറ്റ് പരമാവധി ഉപയോഗിക്കാം:`,
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം:`,
                 icon: "success",
                 input: "select",
                 inputOptions: optionsObj,
@@ -5452,15 +5452,13 @@
               }
             }
           } else {
-            // --- 2. സ്മാർട്ട് സ്വാപ്പ് കിട്ടിയില്ലെങ്കിൽ ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാൻ ---
+            // --- 2. സ്മാർട്ട് സ്വാപ്പ് കിട്ടിയില്ലെങ്കിൽ മാത്രം സാധാരണ രീതിയിൽ ഗ്യാപ്പ് കുറയ്ക്കാൻ നോക്കുന്നു ---
             let exactMatchingMedicines = [];
 
             unselected.forEach((u) => {
-              // ഗ്യാപ്പിൽ എത്ര എണ്ണം ഉൾക്കൊള്ളാൻ പറ്റും എന്ന് നോക്കുന്നു (Math.floor കൊടുത്താൽ ബഡ്ജറ്റ് കവിയാൻ ശ്രമിക്കില്ല)
               let addQty = Math.floor(finalDiff / u.ratePaise);
-
               if (addQty > 0) {
-                let remainingGap = finalDiff - u.ratePaise * addQty; // ചേർത്താൽ ബാക്കി എത്ര വരും
+                let remainingGap = finalDiff - u.ratePaise * addQty;
                 exactMatchingMedicines.push({
                   item: u,
                   qty: addQty,
@@ -5469,14 +5467,11 @@
               }
             });
 
-            // ബാക്കി വരുന്ന ഗ്യാപ്പ് ഏറ്റവും കുറവുള്ളത് (അതായത് ഏറ്റവും മികച്ച മാച്ച്) ആദ്യം വരാൻ അടുക്കുന്നു
             exactMatchingMedicines.sort((a, b) => a.gapAfter - b.gapAfter);
 
             if (exactMatchingMedicines.length > 0) {
-              // ഏറ്റവും മികച്ച 15 ഓപ്ഷനുകൾ മാത്രം എടുക്കുന്നു
               let topMatches = exactMatchingMedicines.slice(0, 15);
 
-              // കൃത്യം ഒരെണ്ണം മാത്രമേ ഉള്ളൂ, മാത്രമല്ല അത് ചേർത്താൽ ഗ്യാപ്പ് 50 പൈസയിൽ താഴെ ആവുകയും ചെയ്യുമെങ്കിൽ നേരിട്ട് ചോദിക്കാം
               if (topMatches.length === 1 && topMatches[0].gapAfter <= 50) {
                 let matchInfo = topMatches[0];
                 let cleanName = matchInfo.item.name
@@ -5500,7 +5495,6 @@
                   selected.push(matchInfo.item);
                 }
               } else {
-                // ഒന്നിൽ കൂടുതൽ ഉണ്ടെങ്കിൽ (അല്ലെങ്കിൽ ഗ്യാപ്പ് ബാക്കി നിൽക്കുന്നുണ്ടെങ്കിൽ) ഡ്രോപ്പ്ഡൗൺ കാണിക്കുന്നു
                 let optionsObj = {};
                 topMatches.forEach((matchInfo, index) => {
                   let cleanName = matchInfo.item.name
@@ -5510,7 +5504,6 @@
                     .trim();
                   let totalCost =
                     (matchInfo.item.ratePaise * matchInfo.qty) / 100;
-                  // യൂസറിന് പെട്ടെന്ന് മനസ്സിലാവാൻ ബാക്കി വരുന്ന തുക കൂടി കാണിക്കുന്നു
                   optionsObj[index] =
                     `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (ചേർത്താൽ ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)})`;
                 });
