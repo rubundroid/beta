@@ -5366,10 +5366,13 @@
 
           for (let sItem of sortedSelected) {
             let targetRate = sItem.ratePaise + finalDiff;
-            // കൃത്യം ആ തുകയോ, അല്ലെങ്കിൽ പരമാവധി 50 പൈസ വ്യത്യാസത്തിലോ നിൽക്കുന്നവ
-            let exactMatches = unselected.filter(
-              (u) => Math.abs(u.ratePaise - targetRate) <= 50,
-            );
+            // --- പുതിയ മാറ്റം: മുകളിലേക്ക് പരമാവധി 49 പൈസ, താഴേക്ക് 50 പൈസ ---
+            let exactMatches = unselected.filter((u) => {
+              let diffRate = u.ratePaise - targetRate;
+              return diffRate <= 49 && diffRate >= -50;
+            });
+            // -----------------------------------------------------------
+
             exactMatches.forEach((match) => {
               swapOptions.push({ add: match, remove: sItem });
             });
@@ -5392,7 +5395,7 @@
 
               const res = await Swal.fire({
                 title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂർണ്ണമായും പൂജ്യമാക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
                 icon: "question",
                 showCancelButton: true,
                 confirmButtonText: "അതെ, മാറ്റം വരുത്തുക",
@@ -5426,7 +5429,7 @@
 
               const res = await Swal.fire({
                 title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം:`,
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാം:`,
                 icon: "success",
                 input: "select",
                 inputOptions: optionsObj,
@@ -5456,7 +5459,8 @@
             let exactMatchingMedicines = [];
 
             unselected.forEach((u) => {
-              let addQty = Math.floor(finalDiff / u.ratePaise);
+              // പഴയ Math.floor മാറ്റി Math.round ആക്കുന്നു (എങ്കിലേ മുകളിലേക്കും 49 പൈസ നോക്കുകയുള്ളൂ)
+              let addQty = Math.round(finalDiff / u.ratePaise);
               if (addQty > 0) {
                 let remainingGap = finalDiff - u.ratePaise * addQty;
                 exactMatchingMedicines.push({
@@ -5467,12 +5471,21 @@
               }
             });
 
-            exactMatchingMedicines.sort((a, b) => a.gapAfter - b.gapAfter);
+            // പൂജ്യത്തോട് ഏറ്റവും അടുത്തുനിൽക്കുന്നവ (മുകളിലേക്കായാലും താഴേക്കായാലും) ആദ്യം വരാൻ അടുക്കുന്നു
+            exactMatchingMedicines.sort(
+              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+            );
 
             if (exactMatchingMedicines.length > 0) {
               let topMatches = exactMatchingMedicines.slice(0, 15);
 
-              if (topMatches.length === 1 && topMatches[0].gapAfter <= 50) {
+              // --- സാർ ചോദിച്ച മാറ്റം ഇവിടെയാണ്! ---
+              // താഴേക്ക് പരമാവധി 50 പൈസ (<= 50) ഉം, മുകളിലേക്ക് പരമാവധി 49 പൈസയും (>= -49)
+              if (
+                topMatches.length === 1 &&
+                topMatches[0].gapAfter <= 50 &&
+                topMatches[0].gapAfter >= -49
+              ) {
                 let matchInfo = topMatches[0];
                 let cleanName = matchInfo.item.name
                   .replace(/✏️/g, "")
