@@ -5644,6 +5644,11 @@
                   <span style="color: ${balanceDisp < 0 ? "#e74c3c" : "#27ae60"}; text-align: right;">ബാക്കി തുക:<br>₹ ${balanceDisp}</span>
               </div>
           </div>
+<div style="text-align: center; margin-top: 15px;">
+        <button type="button" onclick="openCategoryLock()" style="background: #34495e; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+            🔒 കാറ്റഗറി ലോക്ക് ചെയ്യുക (Lock Types)
+        </button>
+    </div>
           `;
 
         Swal.close(); // നിലവിലെ ലോഡിംഗ് ക്ലോസ് ചെയ്യുക
@@ -5662,15 +5667,18 @@
         });
 
         if (confirmResult.isConfirmed) {
-          // യൂസർ സമ്മതിച്ചാൽ (Apply) മാത്രം ടേബിൾ അപ്ഡേറ്റ് ചെയ്യുന്നു
-          renderFinal(
-            selected.filter((i) => i.qty > 0),
-            rows,
-            currentTotalPaise,
-            targetPaise,
-          );
-        } else {
-          // ക്യാൻസൽ ചെയ്താൽ മാറ്റങ്ങൾ ഒഴിവാക്കി പഴയ പടി നിൽക്കും
+          // മാറ്റങ്ങൾ സേവ് ചെയ്യാനുള്ള renderFinal കോഡ് (ഇത് പഴയത് തന്നെ നിൽക്കട്ടെ)
+          if (typeof renderFinal === "function") {
+            renderFinal(
+              selected.filter((i) => i.qty > 0),
+              rows,
+              currentTotalPaise,
+              targetPaise,
+            );
+          }
+        } else if (confirmResult.dismiss === "cancel") {
+          // <-- ഇവിടെയാണ് മാറ്റം!
+          // യൂസർ ശരിക്കും 'Cancel' ബട്ടൺ അടിച്ചാൽ മാത്രം ഈ മെസ്സേജ് വരും
           Swal.fire({
             title: "റദ്ദാക്കി",
             text: "പഴയ മരുന്നുകൾ അതേപടി നിലനിർത്തിയിട്ടുണ്ട്.",
@@ -5753,6 +5761,532 @@
           icon: finalBal == "0.00" ? "success" : "info",
         });
       }
+      async function openCategoryLock() {
+        // നിലവിലുള്ള പോപ്പ്-അപ്പ് ക്ലോസ് ചെയ്യുന്നു
+        Swal.close();
+
+        // എല്ലാ കാറ്റഗറികളും (Types) ഡാറ്റയിൽ നിന്ന് തനിയെ കണ്ടുപിടിക്കുന്നു
+        const rows = document.querySelectorAll(".med-row");
+        let types = new Set();
+        rows.forEach((r) => {
+          let t = r.getAttribute("data-type");
+          if (t && t.trim() !== "") types.add(t);
+        });
+        let typeArray = Array.from(types).sort();
+
+        // ചെക്ക്-ബോക്സുകൾ ഉണ്ടാക്കുന്നു
+        let checkboxHtml = typeArray
+          .map(
+            (t) =>
+              `<label style="display:block; text-align:left; margin-left: 20%; margin-bottom: 8px; font-size: 15px; cursor: pointer;">
+                <input type="checkbox" class="lock-type-chk" value="${t}" style="transform: scale(1.2); margin-right: 10px;"> ${t}
+            </label>`,
+          )
+          .join("");
+
+        // പുതിയ വിൻഡോ കാണിക്കുന്നു
+        const res = await Swal.fire({
+          title: "ലോക്ക് ചെയ്യേണ്ടവ തിരഞ്ഞെടുക്കുക",
+          html: `<div style="margin-top:15px; max-height: 250px; overflow-y: auto;">
+                     <p style="font-size: 13px; color: #e74c3c; margin-bottom: 15px;">ടിക്ക് ചെയ്യുന്ന കാറ്റഗറികളുടെ എണ്ണത്തിൽ യാതൊരു മാറ്റവും വരുത്തില്ല.</p>
+                     ${checkboxHtml}
+                   </div>`,
+          showCancelButton: true,
+          confirmButtonColor: "#2980b9",
+          confirmButtonText: "ലോക്ക് ചെയ്ത് റീ-അഡ്ജസ്റ്റ് ചെയ്യുക",
+          cancelButtonText: "ക്യാൻസൽ (Cancel)",
+        });
+
+        if (res.isConfirmed) {
+          let selectedTypes = Array.from(
+            document.querySelectorAll(".lock-type-chk:checked"),
+          ).map((c) => c.value);
+          if (selectedTypes.length > 0) {
+            // യൂസർ തിരഞ്ഞെടുത്താൽ പുതിയ ഫംഗ്ഷൻ വിളിക്കുന്നു
+            autoAdjustWithLock(selectedTypes);
+          } else {
+            Swal.fire({
+              title: "ഒന്നും തിരഞ്ഞെടുത്തില്ല!",
+              text: "സാധാരണ അഡ്ജസ്റ്റ്മെന്റ് നിലനിർത്തുന്നു.",
+              icon: "info",
+              timer: 2000,
+            });
+          }
+        }
+      }
+
+      async function autoAdjustWithLock(lockedTypes) {
+        const budgetInput = document.getElementById("total-budget");
+        const targetPaise = Math.round(parseFloat(budgetInput.value) * 100);
+
+        if (!targetPaise || targetPaise <= 0)
+          return Swal.fire({ title: "ബജറ്റ് നൽകുക!", icon: "warning" });
+
+        Swal.fire({
+          title: "ലോക്ക് ചെയ്തവ മാറ്റിവെച്ച് ബഡ്ജറ്റ് ക്രമീകരിക്കുന്നു...",
+          allowOutsideClick: false,
+          didOpen: () => {
+            Swal.showLoading();
+          },
+        });
+        await new Promise((r) => setTimeout(r, 600));
+
+        const rows = Array.from(document.querySelectorAll(".med-row"));
+        let lockedSelected = [];
+        let unlockedSelected = [];
+        let unlockedUnselected = [];
+
+        let lockedTotalPaise = 0;
+        let originalTotalPaise = 0;
+        let unlockedCurrentPaise = 0;
+
+        // 1. മരുന്നുകളെ ലോക്ക് ചെയ്തവ, ലോക്ക് ചെയ്യാത്തവ എന്നിങ്ങനെ തരംതിരിക്കുന്നു
+        rows.forEach((row) => {
+          const qtyInp = row.querySelector(".qty-input");
+          const ratePaise = Math.round(
+            parseFloat(row.cells[3].innerText) * 100,
+          );
+          const qty = parseInt(qtyInp.value) || 0;
+          const medType = row.getAttribute("data-type");
+          const isLocked = lockedTypes.includes(medType);
+
+          const item = {
+            row,
+            oldQty: qty,
+            qty,
+            ratePaise,
+            input: qtyInp,
+            name: row.cells[1].innerText,
+            type: medType,
+            isLocked: isLocked,
+          };
+
+          if (qty > 0) {
+            originalTotalPaise += qty * ratePaise;
+            if (isLocked) {
+              lockedSelected.push(item);
+              lockedTotalPaise += qty * ratePaise; // ലോക്ക് ചെയ്തവയുടെ തുക മാറ്റിവെക്കുന്നു
+            } else {
+              unlockedSelected.push(item);
+              unlockedCurrentPaise += qty * ratePaise;
+            }
+          } else if (!isLocked) {
+            // ലോക്ക് ചെയ്യാത്ത, എന്നാൽ 0 ആയി കിടക്കുന്നവ പുതിയത് ചേർക്കാൻ വേണ്ടി എടുക്കുന്നു
+            unlockedUnselected.push(item);
+          }
+        });
+
+        // 2. ബാക്കിയുള്ള ബഡ്ജറ്റ് കണ്ടുപിടിക്കുന്നു
+        let availablePaiseForUnlocked = targetPaise - lockedTotalPaise;
+
+        if (availablePaiseForUnlocked < 0) {
+          Swal.close();
+          return Swal.fire({
+            title: "ബഡ്ജറ്റ് തികയില്ല!",
+            html: `ലോക്ക് ചെയ്ത കാറ്റഗറികളുടെ ആകെ തുക <b>(₹ ${(lockedTotalPaise / 100).toFixed(2)})</b> മൊത്തം ബഡ്ജറ്റിനേക്കാൾ കൂടുതലാണ്.<br>ദയവായി കുറച്ചു മരുന്നുകൾ ഒഴിവാക്കുക.`,
+            icon: "error",
+          });
+        }
+
+        // 3. അൺലോക്ക് ചെയ്തവയുടെ എണ്ണം ബാക്കി ബഡ്ജറ്റ് വെച്ച് ക്രമീകരിക്കുന്നു (Ratio)
+        if (unlockedSelected.length > 0 && unlockedCurrentPaise > 0) {
+          let ratio = availablePaiseForUnlocked / unlockedCurrentPaise;
+          unlockedCurrentPaise = 0;
+          unlockedSelected.forEach((item) => {
+            item.qty = Math.floor(item.qty * ratio);
+            unlockedCurrentPaise += item.qty * item.ratePaise;
+          });
+
+          // 4. ഫൈൻ-ട്യൂണിംഗ് (അൺലോക്ക് ചെയ്തവയ്ക്ക് മാത്രം)
+          let limit = 0;
+          while (limit < 500) {
+            let diff = availablePaiseForUnlocked - unlockedCurrentPaise;
+            if (diff === 0) break;
+            let actionTaken = false;
+
+            if (diff > 0) {
+              let bestToAdd = unlockedSelected
+                .filter((i) => i.ratePaise <= diff)
+                .sort((a, b) => b.ratePaise - a.ratePaise)[0];
+              if (bestToAdd) {
+                bestToAdd.qty++;
+                unlockedCurrentPaise += bestToAdd.ratePaise;
+                actionTaken = true;
+              } else {
+                for (let a of unlockedSelected) {
+                  if (a.qty > 0) {
+                    for (let b of unlockedSelected) {
+                      let swapGain = b.ratePaise - a.ratePaise;
+                      if (swapGain > 0 && swapGain <= diff) {
+                        a.qty--;
+                        b.qty++;
+                        unlockedCurrentPaise += swapGain;
+                        actionTaken = true;
+                        break;
+                      }
+                    }
+                  }
+                  if (actionTaken) break;
+                }
+              }
+            } else {
+              let absDiff = Math.abs(diff);
+              let bestToRemove = unlockedSelected
+                .filter((i) => i.qty > 0 && i.ratePaise <= absDiff)
+                .sort((a, b) => b.ratePaise - a.ratePaise)[0];
+              if (bestToRemove) {
+                bestToRemove.qty--;
+                unlockedCurrentPaise -= bestToRemove.ratePaise;
+                actionTaken = true;
+              }
+            }
+            if (!actionTaken) break;
+            limit++;
+          }
+        }
+
+        // 5. സ്മാർട്ട് സ്വാപ്പും ഗ്യാപ്പ് ഫില്ലിംഗും (നമ്മുടെ പഴയ മാജിക് - അൺലോക്ക് ചെയ്തവയ്ക്ക് മാത്രം)
+        let finalDiff = availablePaiseForUnlocked - unlockedCurrentPaise;
+
+        if (finalDiff > 50) {
+          Swal.close();
+          let swapOptions = [];
+          let sortedSelected = unlockedSelected
+            .filter((i) => i.qty > 0)
+            .sort((a, b) => a.ratePaise - b.ratePaise);
+
+          for (let sItem of sortedSelected) {
+            let targetRate = sItem.ratePaise + finalDiff;
+            let exactMatches = unlockedUnselected.filter((u) => {
+              let diffRate = u.ratePaise - targetRate;
+              return diffRate <= 49 && diffRate >= -50;
+            });
+            exactMatches.forEach((match) => {
+              swapOptions.push({ add: match, remove: sItem });
+            });
+          }
+
+          if (swapOptions.length > 0) {
+            if (swapOptions.length === 1) {
+              let opt = swapOptions[0];
+              let cleanAdd = opt.add.name
+                .replace(/✏️/g, "")
+                .replace(/🗑️/g, "")
+                .replace(/\*/g, "")
+                .trim();
+              let cleanRem = opt.remove.name
+                .replace(/✏️/g, "")
+                .replace(/🗑️/g, "")
+                .replace(/\*/g, "")
+                .trim();
+
+              const res = await Swal.fire({
+                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം. സമ്മതമാണോ?`,
+                icon: "question",
+                showCancelButton: true,
+                confirmButtonText: "അതെ",
+                cancelButtonText: "വേണ്ട",
+              });
+
+              if (res.isConfirmed) {
+                opt.remove.qty--;
+                opt.add.oldQty = 0;
+                opt.add.qty = 1;
+                unlockedSelected.push(opt.add);
+                unlockedCurrentPaise =
+                  unlockedCurrentPaise -
+                  opt.remove.ratePaise +
+                  opt.add.ratePaise;
+              }
+            } else {
+              let optionsObj = {};
+              swapOptions.slice(0, 15).forEach((opt, index) => {
+                let cleanAdd = opt.add.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+                let cleanRem = opt.remove.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+                optionsObj[index] =
+                  `${cleanAdd} (പകരം 1 ${cleanRem} ഒഴിവാക്കും)`;
+              });
+
+              const res = await Swal.fire({
+                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം:`,
+                icon: "success",
+                input: "select",
+                inputOptions: optionsObj,
+                showCancelButton: true,
+                confirmButtonText: "അഡ്ജസ്റ്റ് ചെയ്യുക",
+                cancelButtonText: "വേണ്ട",
+              });
+
+              if (res.isConfirmed && res.value) {
+                let chosen = swapOptions[res.value];
+                chosen.remove.qty--;
+                chosen.add.oldQty = 0;
+                chosen.add.qty = 1;
+                unlockedSelected.push(chosen.add);
+                unlockedCurrentPaise =
+                  unlockedCurrentPaise -
+                  chosen.remove.ratePaise +
+                  chosen.add.ratePaise;
+              }
+            }
+          } else {
+            let exactMatchingMedicines = [];
+            unlockedUnselected.forEach((u) => {
+              // ഇവിടെ Math.round മാറ്റി Math.floor ആക്കി! (എങ്കിലേ ബഡ്ജറ്റ് കവിയാതിരിക്കൂ)
+              let addQty = Math.floor(finalDiff / u.ratePaise);
+
+              if (addQty > 0) {
+                let remainingGap = finalDiff - u.ratePaise * addQty;
+                exactMatchingMedicines.push({
+                  item: u,
+                  qty: addQty,
+                  gapAfter: remainingGap,
+                });
+              }
+
+              // ഒരെണ്ണം കൂടി കൂടുതൽ ചേർത്താൽ (ബഡ്ജറ്റ് കവിയുമോ എന്ന് നോക്കാൻ)
+              let addQtyUp = addQty + 1;
+              let overGap = finalDiff - u.ratePaise * addQtyUp;
+
+              // മാജിക് ലോക്ക്: പരമാവധി 49 പൈസ മാത്രമേ മുകളിലേക്ക് പോകാവൂ!
+              if (overGap >= -49 && overGap < 0) {
+                exactMatchingMedicines.push({
+                  item: u,
+                  qty: addQtyUp,
+                  gapAfter: overGap,
+                });
+              }
+            });
+
+            exactMatchingMedicines.sort(
+              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+            );
+
+            if (exactMatchingMedicines.length > 0) {
+              let topMatches = exactMatchingMedicines.slice(0, 15);
+
+              if (
+                topMatches.length === 1 &&
+                topMatches[0].gapAfter <= 50 &&
+                topMatches[0].gapAfter >= -49
+              ) {
+                let matchInfo = topMatches[0];
+                let cleanName = matchInfo.item.name
+                  .replace(/✏️/g, "")
+                  .replace(/🗑️/g, "")
+                  .replace(/\*/g, "")
+                  .trim();
+
+                const res = await Swal.fire({
+                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാം!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${matchInfo.qty} എണ്ണം ${cleanName}</b> ചേർക്കട്ടെ?`,
+                  icon: "question",
+                  showCancelButton: true,
+                  confirmButtonText: "അതെ",
+                  cancelButtonText: "വേണ്ട",
+                });
+                if (res.isConfirmed) {
+                  matchInfo.item.oldQty = 0;
+                  matchInfo.item.qty = matchInfo.qty;
+                  unlockedCurrentPaise +=
+                    matchInfo.item.ratePaise * matchInfo.qty;
+                  unlockedSelected.push(matchInfo.item);
+                }
+              } else {
+                let optionsObj = {};
+                topMatches.forEach((matchInfo, index) => {
+                  let cleanName = matchInfo.item.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  let totalCost =
+                    (matchInfo.item.ratePaise * matchInfo.qty) / 100;
+                  let gapText =
+                    matchInfo.gapAfter < 0
+                      ? `മുകളിൽ ₹ ${(Math.abs(matchInfo.gapAfter) / 100).toFixed(2)}`
+                      : `ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)}`;
+                  optionsObj[index] =
+                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (${gapText})`;
+                });
+
+                const res = await Swal.fire({
+                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ്!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുക്കുക:`,
+                  icon: "question",
+                  input: "select",
+                  inputOptions: optionsObj,
+                  showCancelButton: true,
+                  confirmButtonText: "ചേർക്കൂ",
+                  cancelButtonText: "വേണ്ട",
+                });
+
+                if (res.isConfirmed && res.value) {
+                  let suggestion = topMatches[res.value];
+                  suggestion.item.oldQty = 0;
+                  suggestion.item.qty = suggestion.qty;
+                  unlockedCurrentPaise +=
+                    suggestion.item.ratePaise * suggestion.qty;
+                  unlockedSelected.push(suggestion.item);
+                }
+              }
+            }
+          }
+        }
+
+        // 6. ഫൈനൽ റിപ്പോർട്ട് തയ്യാറാക്കാൻ ലോക്ക് ചെയ്തതും അല്ലാത്തതും വീണ്ടും ഒന്നാക്കുന്നു
+        let finalSelectedList = lockedSelected.concat(unlockedSelected);
+        let currentTotalPaise = lockedTotalPaise + unlockedCurrentPaise;
+
+        let summaryRows = "";
+        let sl = 1;
+        let finalSelected = finalSelectedList.filter(
+          (i) => i.qty > 0 || i.oldQty > 0,
+        );
+
+        finalSelected.forEach((item) => {
+          let isChanged = item.qty !== item.oldQty;
+          let changeIndicator = "";
+          let lockIcon = item.isLocked
+            ? ` <span style="font-size: 14px;" title="Locked">🔒</span>`
+            : "";
+
+          if (item.qty > item.oldQty) {
+            let qtyDiff = Math.abs(item.qty - item.oldQty);
+            changeIndicator = ` <span style="color: #27ae60; font-size: 13px; font-weight: bold;">(+${qtyDiff} ↑)</span>`;
+          } else if (item.qty < item.oldQty) {
+            let qtyDiff = Math.abs(item.qty - item.oldQty);
+            changeIndicator = ` <span style="color: #e74c3c; font-size: 13px; font-weight: bold;">(-${qtyDiff} ↓)</span>`;
+          }
+
+          let rowBg = isChanged
+            ? "background-color: #fffae6;"
+            : item.isLocked
+              ? "background-color: #f1f8ff;"
+              : "";
+          let cleanName = item.name
+            .replace(/✏️/g, "")
+            .replace(/🗑️/g, "")
+            .replace(/\*/g, "")
+            .trim();
+
+          summaryRows += `
+        <tr style="border-bottom: 1px solid #ddd; ${rowBg}">
+            <td style="padding: 10px 6px;">${sl++}</td>
+            <td style="padding: 10px 6px; word-break: break-word; line-height: 1.2;">${cleanName}${lockIcon}</td>
+            <td style="padding: 10px 6px; text-align:center;">${item.oldQty}</td>
+            <td style="padding: 10px 6px; text-align:center; font-weight:bold;">${item.qty}${changeIndicator}</td>
+        </tr>`;
+        });
+
+        const finalTotalDisp = (currentTotalPaise / 100).toFixed(2);
+        const oldTotalDisp = (originalTotalPaise / 100).toFixed(2);
+        const targetDisp = (targetPaise / 100).toFixed(2);
+        const balanceDisp = ((targetPaise - currentTotalPaise) / 100).toFixed(
+          2,
+        );
+
+        let balanceBadge = "";
+        if (
+          balanceDisp === "0.00" ||
+          balanceDisp === "0" ||
+          balanceDisp === "-0.00"
+        ) {
+          balanceBadge = `<span style="background: #27ae60; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; display: inline-block;">✅ പെർഫെക്റ്റ് മാച്ച്!</span>`;
+        } else {
+          let badgeColor = balanceDisp < 0 ? "#e74c3c" : "#f39c12"; // മൈനസ് ആണെങ്കിൽ ചുവപ്പ്
+          balanceBadge = `<span style="background: ${badgeColor}; color: white; padding: 3px 10px; border-radius: 12px; font-size: 12px; display: inline-block;">⚠️ ₹ ${balanceDisp} ബാക്കി</span>`;
+        }
+
+        let summaryHtml = `
+    <div style="max-height: 55vh; overflow-y: auto; border: 1px solid #ccc; margin-bottom: 12px; border-radius: 6px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+            <thead style="position: sticky; top: 0; background: #1e3c72; color: white; z-index: 2;">
+                <tr>
+                    <th style="padding: 10px 6px; width: 10%;">SL</th>
+                    <th style="padding: 10px 6px; width: 55%;">ITEM</th>
+                    <th style="padding: 10px 6px; text-align:center; width: 15%;">OLD</th>
+                    <th style="padding: 10px 6px; text-align:center; width: 20%;">NEW</th>
+                </tr>
+            </thead>
+            <tbody>${summaryRows}</tbody>
+        </table>
+    </div>
+    
+    <div style="background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); padding: 15px; border-radius: 8px; border: 1px solid #dcdde1; font-size: 13px; font-weight: bold;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 2px dotted #bdc3c7; padding-bottom: 10px;">
+            <div style="color: #7f8c8d; line-height: 1.4;">പഴയ തുക:<br><span style="font-size: 16px; color: #34495e;">₹ ${oldTotalDisp}</span></div>
+            <div style="text-align: right; line-height: 1.4; color: #2980b9;">പുതിയ തുക:<br><span style="font-size: 16px; color: #1abc9c;">₹ ${finalTotalDisp}</span></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="color: #8e44ad; line-height: 1.4;">ആകെ ബജറ്റ്:<br><span style="font-size: 16px;">₹ ${targetDisp}</span></div>
+            <div style="text-align: right; line-height: 1.4;">
+                <span style="color: #2c3e50; font-size: 12px;">സ്റ്റാറ്റസ്:</span><br>
+                ${balanceBadge}
+            </div>
+        </div>
+    </div>`;
+
+        Swal.close();
+
+        const confirmResult = await Swal.fire({
+          title: "ലോക്ക് ചെയ്തുള്ള ബഡ്ജറ്റ് സമ്മറി",
+          html: summaryHtml,
+          width: "min(95%, 600px)",
+          showCancelButton: true,
+          confirmButtonColor: "#27ae60",
+          cancelButtonColor: "#7f8c8d",
+          confirmButtonText: "മാറ്റങ്ങൾ സേവ് ചെയ്യുക",
+          cancelButtonText: "തിരികെ പോവുക",
+          allowOutsideClick: false,
+        });
+
+        if (confirmResult.isConfirmed) {
+          // 1. ടേബിൾ അപ്ഡേറ്റ് ചെയ്യാൻ പഴയ renderFinal വിളിക്കുന്നു
+          renderFinal(
+            finalSelectedList.filter((i) => i.qty > 0),
+            rows,
+            currentTotalPaise,
+            targetPaise,
+          );
+
+          // 2. PDF നും ബാക്കി ഫംഗ്ഷനുകൾക്കും പുതിയ ഡാറ്റ കിട്ടാൻ നിർബന്ധമായും അപ്ഡേറ്റ് ചെയ്യുന്നു (Force Sync)
+          rows.forEach((row) => {
+            let inp = row.querySelector(".qty-input");
+            if (inp) {
+              inp.setAttribute("value", inp.value); // PDF പ്രിന്റിന് പുതിയ എണ്ണം കിട്ടാൻ ഇത് നിർബന്ധമാണ്
+              // ബാക്ക്ഗ്രൗണ്ടിൽ എണ്ണം മാറിയത് സിസ്റ്റത്തിനെ അറിയിക്കാൻ ഒരു വ്യാജ ഇൻപുട്ട് ഇവന്റ് ഉണ്ടാക്കുന്നു
+              inp.dispatchEvent(new Event("input", { bubbles: true }));
+            }
+          });
+
+          // 3. ബട്ടണുകളിലെ പഴയ തുക മാറാൻ ഒന്നുകൂടി കാൽക്കുലേറ്റ് ചെയ്ത് സേവ് ചെയ്യുന്നു
+          if (typeof calculateAll === "function") calculateAll();
+          if (typeof saveDraft === "function") saveDraft();
+        } else if (
+          confirmResult.dismiss === "cancel" ||
+          confirmResult.dismiss === "backdrop"
+        ) {
+          Swal.fire({
+            title: "റദ്ദാക്കി",
+            text: "പഴയ മരുന്നുകൾ അതേപടി നിലനിർത്തിയിട്ടുണ്ട്.",
+            icon: "info",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+        }
+      }
+
       function enterApp() {
         const screen = document.getElementById("welcome-screen");
         screen.style.transition = "opacity 0.5s ease";
