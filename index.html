@@ -5667,18 +5667,45 @@
         });
 
         if (confirmResult.isConfirmed) {
-          // മാറ്റങ്ങൾ സേവ് ചെയ്യാനുള്ള renderFinal കോഡ് (ഇത് പഴയത് തന്നെ നിൽക്കട്ടെ)
-          if (typeof renderFinal === "function") {
-            renderFinal(
-              selected.filter((i) => i.qty > 0),
-              rows,
-              currentTotalPaise,
-              targetPaise,
-            );
-          }
-        } else if (confirmResult.dismiss === "cancel") {
-          // <-- ഇവിടെയാണ് മാറ്റം!
-          // യൂസർ ശരിക്കും 'Cancel' ബട്ടൺ അടിച്ചാൽ മാത്രം ഈ മെസ്സേജ് വരും
+          // 1. സേവ് ചെയ്യാൻ തുടങ്ങുമ്പോൾ ഒരു ലോഡിംഗ് സ്ക്രീൻ കാണിക്കുന്നു
+          Swal.fire({
+            title: "മാറ്റങ്ങൾ സേവ് ചെയ്യുന്നു...",
+            html: "ദയവായി കാത്തിരിക്കുക",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+
+          // 2. സ്ക്രീനിൽ ലോഡിംഗ് വരാൻ ചെറിയൊരു സമയം കൊടുക്കുന്നു
+          setTimeout(() => {
+            // ടേബിൾ അപ്ഡേറ്റ് ചെയ്യാൻ പഴയ renderFinal വിളിക്കുന്നു
+            if (typeof renderFinal === "function") {
+              renderFinal(
+                selected.filter((i) => i.qty > 0), // പഴയ ഫംഗ്ഷനിൽ selected എന്നാണ് ഉപയോഗിക്കുന്നത്
+                rows,
+                currentTotalPaise,
+                targetPaise,
+              );
+            }
+
+            // 3. PDF നും ബാക്കി ഫംഗ്ഷനുകൾക്കും പുതിയ ഡാറ്റ കിട്ടാൻ അപ്ഡേറ്റ് ചെയ്യുന്നു (Force Sync)
+            rows.forEach((row) => {
+              let inp = row.querySelector(".qty-input");
+              if (inp) {
+                inp.setAttribute("value", inp.value);
+                inp.dispatchEvent(new Event("input", { bubbles: true }));
+              }
+            });
+
+            // 4. ബട്ടണുകളിലെ പഴയ തുക മാറാൻ ഒന്നുകൂടി കാൽക്കുലേറ്റ് ചെയ്ത് സേവ് ചെയ്യുന്നു
+            if (typeof calculateAll === "function") calculateAll();
+            if (typeof saveDraft === "function") saveDraft();
+          }, 100);
+        } else if (
+          confirmResult.dismiss === "cancel" ||
+          confirmResult.dismiss === "backdrop"
+        ) {
           Swal.fire({
             title: "റദ്ദാക്കി",
             text: "പഴയ മരുന്നുകൾ അതേപടി നിലനിർത്തിയിട്ടുണ്ട്.",
@@ -6252,27 +6279,43 @@
         });
 
         if (confirmResult.isConfirmed) {
-          // 1. ടേബിൾ അപ്ഡേറ്റ് ചെയ്യാൻ പഴയ renderFinal വിളിക്കുന്നു
-          renderFinal(
-            finalSelectedList.filter((i) => i.qty > 0),
-            rows,
-            currentTotalPaise,
-            targetPaise,
-          );
-
-          // 2. PDF നും ബാക്കി ഫംഗ്ഷനുകൾക്കും പുതിയ ഡാറ്റ കിട്ടാൻ നിർബന്ധമായും അപ്ഡേറ്റ് ചെയ്യുന്നു (Force Sync)
-          rows.forEach((row) => {
-            let inp = row.querySelector(".qty-input");
-            if (inp) {
-              inp.setAttribute("value", inp.value); // PDF പ്രിന്റിന് പുതിയ എണ്ണം കിട്ടാൻ ഇത് നിർബന്ധമാണ്
-              // ബാക്ക്ഗ്രൗണ്ടിൽ എണ്ണം മാറിയത് സിസ്റ്റത്തിനെ അറിയിക്കാൻ ഒരു വ്യാജ ഇൻപുട്ട് ഇവന്റ് ഉണ്ടാക്കുന്നു
-              inp.dispatchEvent(new Event("input", { bubbles: true }));
-            }
+          // 1. സേവ് ചെയ്യാൻ തുടങ്ങുമ്പോൾ ഒരു ലോഡിംഗ് സ്ക്രീൻ കാണിക്കുന്നു
+          Swal.fire({
+            title: "മാറ്റങ്ങൾ സേവ് ചെയ്യുന്നു...",
+            html: "ദയവായി കാത്തിരിക്കുക",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
           });
 
-          // 3. ബട്ടണുകളിലെ പഴയ തുക മാറാൻ ഒന്നുകൂടി കാൽക്കുലേറ്റ് ചെയ്ത് സേവ് ചെയ്യുന്നു
-          if (typeof calculateAll === "function") calculateAll();
-          if (typeof saveDraft === "function") saveDraft();
+          // 2. സ്ക്രീനിൽ ലോഡിംഗ് വരാൻ വേണ്ടി ബ്രൗസറിന് ഒരു ചെറിയ സമയം (100ms) കൊടുക്കുന്നു
+          setTimeout(() => {
+            // ടേബിൾ അപ്ഡേറ്റ് ചെയ്യാൻ പഴയ renderFinal വിളിക്കുന്നു
+            // (കുറിപ്പ്: സാധാരണ ഫംഗ്ഷനിൽ finalSelectedList എന്നതിന് പകരം selected എന്ന് കൊടുക്കുക)
+            renderFinal(
+              finalSelectedList.filter((i) => i.qty > 0),
+              rows,
+              currentTotalPaise,
+              targetPaise,
+            );
+
+            // PDF നും ബാക്കി ഫംഗ്ഷനുകൾക്കും പുതിയ ഡാറ്റ കിട്ടാൻ നിർബന്ധമായും അപ്ഡേറ്റ് ചെയ്യുന്നു
+            rows.forEach((row) => {
+              let inp = row.querySelector(".qty-input");
+              if (inp) {
+                inp.setAttribute("value", inp.value);
+                inp.dispatchEvent(new Event("input", { bubbles: true }));
+              }
+            });
+
+            // ബട്ടണുകളിലെ പഴയ തുക മാറാൻ ഒന്നുകൂടി കാൽക്കുലേറ്റ് ചെയ്ത് സേവ് ചെയ്യുന്നു
+            if (typeof calculateAll === "function") calculateAll();
+            if (typeof saveDraft === "function") saveDraft();
+
+            // ടേബിൾ സേവ് ചെയ്ത ശേഷം renderFinal ലെ ആ 'Perfect Alignment' മെസ്സേജ്
+            // തനിയെ വന്ന് ഈ ലോഡിംഗ് സ്ക്രീനിനെ മാറ്റിക്കൊള്ളും!
+          }, 100);
         } else if (
           confirmResult.dismiss === "cancel" ||
           confirmResult.dismiss === "backdrop"
