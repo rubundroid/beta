@@ -1855,7 +1855,7 @@
     </div>
     <script>
       (function autoUpdateCache() {
-        const currentAppVersion = "3.3";
+        const currentAppVersion = "3.4";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
@@ -5701,7 +5701,7 @@
             // 4. ബട്ടണുകളിലെ പഴയ തുക മാറാൻ ഒന്നുകൂടി കാൽക്കുലേറ്റ് ചെയ്ത് സേവ് ചെയ്യുന്നു
             if (typeof calculateAll === "function") calculateAll();
             if (typeof saveDraft === "function") saveDraft();
-          }, 100);
+          }, 300);
         } else if (
           confirmResult.dismiss === "cancel" ||
           confirmResult.dismiss === "backdrop"
@@ -6315,7 +6315,7 @@
 
             // ടേബിൾ സേവ് ചെയ്ത ശേഷം renderFinal ലെ ആ 'Perfect Alignment' മെസ്സേജ്
             // തനിയെ വന്ന് ഈ ലോഡിംഗ് സ്ക്രീനിനെ മാറ്റിക്കൊള്ളും!
-          }, 100);
+          }, 300);
         } else if (
           confirmResult.dismiss === "cancel" ||
           confirmResult.dismiss === "backdrop"
