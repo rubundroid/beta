@@ -5349,136 +5349,128 @@
           limit++;
         }
 
-        // ==================================================
-        // ഭാഗം 5: ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാനുള്ള സ്മാർട്ട് ലോജിക് (അന്തിമ രൂപം)
-        // ==================================================
+        // 5. സ്മാർട്ട് സ്വാപ്പും ഗ്യാപ്പ് ഫില്ലിംഗും (പഴയ Auto Fill-ന് വേണ്ടി അപ്ഡേറ്റ് ചെയ്തത്)
         let finalDiff = targetPaise - currentTotalPaise;
 
         if (finalDiff > 50) {
-          // ഗ്യാപ്പ് 50 പൈസയ്ക്ക് മുകളിലാണെങ്കിൽ
           Swal.close();
+          let solvedInternally = false;
 
-          // 1. ആദ്യം സാറിന്റെ ആ 'സ്മാർട്ട് സ്വാപ്പ്' മാജിക് പരീക്ഷിക്കുന്നു!
-          let swapOptions = [];
-          let sortedSelected = selected
-            .filter((i) => i.qty > 0)
-            .sort((a, b) => a.ratePaise - b.ratePaise);
+          // =========================================================
+          // PHASE 1: അകത്ത് (Selected) നോക്കുന്നു
+          // =========================================================
+          let internalSolutions = [];
 
-          for (let sItem of sortedSelected) {
+          selected.forEach((u) => {
+            let addQty = Math.floor(finalDiff / u.ratePaise);
+            if (addQty > 0) {
+              let gap = finalDiff - u.ratePaise * addQty;
+              internalSolutions.push({
+                type: "add",
+                item: u,
+                qty: addQty,
+                gapAfter: gap,
+              });
+            }
+            let addQtyUp = addQty + 1;
+            let overGap = finalDiff - u.ratePaise * addQtyUp;
+            if (overGap >= -49 && overGap < 0) {
+              internalSolutions.push({
+                type: "add",
+                item: u,
+                qty: addQtyUp,
+                gapAfter: overGap,
+              });
+            }
+          });
+
+          for (let sItem of selected) {
             let targetRate = sItem.ratePaise + finalDiff;
-            // --- പുതിയ മാറ്റം: മുകളിലേക്ക് പരമാവധി 49 പൈസ, താഴേക്ക് 50 പൈസ ---
-            let exactMatches = unselected.filter((u) => {
+            let exactMatches = selected.filter((u) => {
+              if (u.row === sItem.row) return false;
               let diffRate = u.ratePaise - targetRate;
               return diffRate <= 49 && diffRate >= -50;
             });
-            // -----------------------------------------------------------
-
             exactMatches.forEach((match) => {
-              swapOptions.push({ add: match, remove: sItem });
+              let gap = finalDiff - (match.ratePaise - sItem.ratePaise);
+              internalSolutions.push({
+                type: "swap",
+                add: match,
+                remove: sItem,
+                gapAfter: gap,
+              });
             });
           }
 
-          if (swapOptions.length > 0) {
-            // --- സ്മാർട്ട് സ്വാപ്പ് കിട്ടി! ---
-            if (swapOptions.length === 1) {
-              let opt = swapOptions[0];
-              let cleanAdd = opt.add.name
-                .replace(/✏️/g, "")
-                .replace(/🗑️/g, "")
-                .replace(/\*/g, "")
-                .trim();
-              let cleanRem = opt.remove.name
-                .replace(/✏️/g, "")
-                .replace(/🗑️/g, "")
-                .replace(/\*/g, "")
-                .trim();
+          if (internalSolutions.length > 0) {
+            internalSolutions.sort(
+              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+            );
+            let best = internalSolutions[0];
 
-              const res = await Swal.fire({
-                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാം. അനുമതി നൽകുന്നുണ്ടോ?`,
-                icon: "question",
-                showCancelButton: true,
-                confirmButtonText: "അതെ, മാറ്റം വരുത്തുക",
-                cancelButtonText: "വേണ്ട",
-              });
-
-              if (res.isConfirmed) {
-                opt.remove.qty--;
-                opt.add.oldQty = 0;
-                opt.add.qty = 1;
-                selected.push(opt.add);
-                currentTotalPaise =
-                  currentTotalPaise - opt.remove.ratePaise + opt.add.ratePaise;
-              }
-            } else {
-              let optionsObj = {};
-              swapOptions.slice(0, 15).forEach((opt, index) => {
-                let cleanAdd = opt.add.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
-                let cleanRem = opt.remove.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
-                optionsObj[index] =
-                  `${cleanAdd} (പകരം 1 ${cleanRem} ഒഴിവാക്കും)`;
-              });
-
-              const res = await Swal.fire({
-                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാം:`,
-                icon: "success",
-                input: "select",
-                inputOptions: optionsObj,
-                inputPlaceholder: "ഏറ്റവും അനുയോജ്യമായത് തിരഞ്ഞെടുക്കുക...",
-                showCancelButton: true,
-                confirmButtonText: "ചേർത്ത് അഡ്ജസ്റ്റ് ചെയ്യുക",
-                cancelButtonText: "വേണ്ട",
-                inputValidator: (value) => {
-                  if (!value) return "ദയവായി ഒരെണ്ണം തിരഞ്ഞെടുക്കുക!";
-                },
-              });
-
-              if (res.isConfirmed && res.value) {
-                let chosen = swapOptions[res.value];
-                chosen.remove.qty--;
-                chosen.add.oldQty = 0;
-                chosen.add.qty = 1;
-                selected.push(chosen.add);
+            if (Math.abs(best.gapAfter) < finalDiff) {
+              if (best.type === "add") {
+                best.item.qty += best.qty;
+                currentTotalPaise += best.item.ratePaise * best.qty;
+              } else if (best.type === "swap") {
+                best.remove.qty--;
+                best.add.qty++;
                 currentTotalPaise =
                   currentTotalPaise -
-                  chosen.remove.ratePaise +
-                  chosen.add.ratePaise;
+                  best.remove.ratePaise +
+                  best.add.ratePaise;
+              }
+
+              finalDiff = targetPaise - currentTotalPaise;
+
+              if (finalDiff <= 50 && finalDiff >= -49) {
+                solvedInternally = true;
               }
             }
-          } else {
-            // --- 2. സ്മാർട്ട് സ്വാപ്പ് കിട്ടിയില്ലെങ്കിൽ മാത്രം സാധാരണ രീതിയിൽ ഗ്യാപ്പ് കുറയ്ക്കാൻ നോക്കുന്നു ---
-            let exactMatchingMedicines = [];
+          }
+
+          // =========================================================
+          // PHASE 2: പുറത്ത് (Unselected) നോക്കുന്നു (അനുമതി വേണം)
+          // =========================================================
+          if (!solvedInternally && finalDiff > 50) {
+            let externalSolutions = [];
+
+            let sortedSelected = selected
+              .filter((i) => i.qty > 0)
+              .sort((a, b) => a.ratePaise - b.ratePaise);
+            for (let sItem of sortedSelected) {
+              let targetRate = sItem.ratePaise + finalDiff;
+              let exactMatches = unselected.filter((u) => {
+                let diffRate = u.ratePaise - targetRate;
+                return diffRate <= 49 && diffRate >= -50;
+              });
+              exactMatches.forEach((match) => {
+                let gap = finalDiff - (match.ratePaise - sItem.ratePaise);
+                externalSolutions.push({
+                  type: "swap",
+                  add: match,
+                  remove: sItem,
+                  gapAfter: gap,
+                });
+              });
+            }
 
             unselected.forEach((u) => {
-              // ഒന്നാമത്തെ ഓപ്ഷൻ: ബഡ്ജറ്റിനുള്ളിൽ കൃത്യമായി നിൽക്കുന്ന എണ്ണം (ഇതിൽ പൈസ ബാക്കി വരും)
               let addQty = Math.floor(finalDiff / u.ratePaise);
               if (addQty > 0) {
-                let remainingGap = finalDiff - u.ratePaise * addQty;
-                exactMatchingMedicines.push({
+                let gap = finalDiff - u.ratePaise * addQty;
+                externalSolutions.push({
+                  type: "add",
                   item: u,
                   qty: addQty,
-                  gapAfter: remainingGap,
+                  gapAfter: gap,
                 });
               }
-
-              // രണ്ടാമത്തെ ഓപ്ഷൻ: ഒരെണ്ണം കൂടി കൂടുതൽ ചേർത്താൽ (ബഡ്ജറ്റ് കവിയുമോ എന്ന് നോക്കാൻ)
               let addQtyUp = addQty + 1;
               let overGap = finalDiff - u.ratePaise * addQtyUp;
-
-              // --- മാജിക് ലോക്ക് ---
-              // ബഡ്ജറ്റ് കവിയുന്നത് 49 പൈസയോ അതിൽ താഴെയോ ആണെങ്കിൽ മാത്രം അതും ഒരു ഓപ്ഷൻ ആക്കുന്നു!
-              // (അതായത് ഒരു കാരണവശാലും 49 പൈസയിൽ കൂടുതൽ മുകളിലേക്ക് പോകില്ല)
               if (overGap >= -49 && overGap < 0) {
-                exactMatchingMedicines.push({
+                externalSolutions.push({
+                  type: "add",
                   item: u,
                   qty: addQtyUp,
                   gapAfter: overGap,
@@ -5486,86 +5478,130 @@
               }
             });
 
-            // പൂജ്യത്തോട് ഏറ്റവും അടുത്തുനിൽക്കുന്നവ (മുകളിലേക്കായാലും താഴേക്കായാലും) ആദ്യം വരാൻ അടുക്കുന്നു
-            exactMatchingMedicines.sort(
-              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
-            );
-
-            if (exactMatchingMedicines.length > 0) {
-              let topMatches = exactMatchingMedicines.slice(0, 15);
+            if (externalSolutions.length > 0) {
+              externalSolutions.sort(
+                (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+              );
+              let topMatches = externalSolutions.slice(0, 15);
 
               if (
                 topMatches.length === 1 &&
                 topMatches[0].gapAfter <= 50 &&
                 topMatches[0].gapAfter >= -49
               ) {
-                let matchInfo = topMatches[0];
-                let cleanName = matchInfo.item.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
-
-                const res = await Swal.fire({
-                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാം!",
-                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${matchInfo.qty} എണ്ണം ${cleanName}</b> ചേർക്കട്ടെ?`,
-                  icon: "question",
-                  showCancelButton: true,
-                  confirmButtonText: "അതെ, ചേർക്കുക",
-                  cancelButtonText: "വേണ്ട",
-                });
-                if (res.isConfirmed) {
-                  matchInfo.item.oldQty = 0;
-                  matchInfo.item.qty = matchInfo.qty;
-                  currentTotalPaise += matchInfo.item.ratePaise * matchInfo.qty;
-                  selected.push(matchInfo.item);
-                }
-              } else {
-                let optionsObj = {};
-                topMatches.forEach((matchInfo, index) => {
-                  let cleanName = matchInfo.item.name
+                let best = topMatches[0];
+                let htmlText = "";
+                if (best.type === "add") {
+                  let cleanName = best.item.name
                     .replace(/✏️/g, "")
                     .replace(/🗑️/g, "")
                     .replace(/\*/g, "")
                     .trim();
-                  let totalCost =
-                    (matchInfo.item.ratePaise * matchInfo.qty) / 100;
+                  htmlText = `<b>${best.qty} എണ്ണം ${cleanName}</b> പുതിയതായി ചേർക്കട്ടെ?`;
+                } else {
+                  let cleanAdd = best.add.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  let cleanRem = best.remove.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  htmlText = `പുതിയതായി <b>${cleanAdd}</b> ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം. സമ്മതമാണോ?`;
+                }
 
-                  // --- പുതിയ മാറ്റം: മെസ്സേജ് കൃത്യമാക്കുന്നു ---
-                  let gapText = "";
-                  if (matchInfo.gapAfter < 0) {
-                    // ബഡ്ജറ്റിന് മുകളിലാണെങ്കിൽ മൈനസ് കാണിക്കാതെ വ്യക്തമായി എഴുതുന്നു
-                    gapText = `ബഡ്ജറ്റിന് മുകളിൽ ₹ ${(Math.abs(matchInfo.gapAfter) / 100).toFixed(2)}`;
+                const res = await Swal.fire({
+                  title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>${htmlText}`,
+                  icon: "question",
+                  showCancelButton: true,
+                  confirmButtonText: "അതെ",
+                  cancelButtonText: "വേണ്ട",
+                });
+
+                if (res.isConfirmed) {
+                  if (best.type === "add") {
+                    best.item.oldQty = 0;
+                    best.item.qty = best.qty;
+                    currentTotalPaise += best.item.ratePaise * best.qty;
+                    selected.push(best.item);
                   } else {
-                    gapText = `ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)}`;
+                    best.remove.qty--;
+                    best.add.oldQty = 0;
+                    best.add.qty = 1;
+                    selected.push(best.add);
+                    currentTotalPaise =
+                      currentTotalPaise -
+                      best.remove.ratePaise +
+                      best.add.ratePaise;
                   }
+                }
+              } else {
+                let optionsObj = {};
+                topMatches.forEach((match, index) => {
+                  let gapText =
+                    match.gapAfter < 0
+                      ? `മുകളിൽ ₹${(Math.abs(match.gapAfter) / 100).toFixed(2)}`
+                      : `ബാക്കി ₹${(match.gapAfter / 100).toFixed(2)}`;
 
-                  optionsObj[index] =
-                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (${gapText})`;
+                  // പേര് വെട്ടിച്ചുരുക്കുന്നില്ല, മുഴുവൻ പേരും കാണിക്കുന്നു!
+                  if (match.type === "add") {
+                    let cleanName = match.item.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+                    let totalCost = (match.item.ratePaise * match.qty) / 100;
+
+                    optionsObj[index] =
+                      `➕ ${match.qty}x ${cleanName} (₹${totalCost.toFixed(2)}) [${gapText}]`;
+                  } else {
+                    let cleanAdd = match.add.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+                    let cleanRem = match.remove.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+
+                    optionsObj[index] =
+                      `🔄 ➕ ${cleanAdd} | ➖ ${cleanRem} [${gapText}]`;
+                  }
                 });
 
                 const res = await Swal.fire({
                   title: "ബഡ്ജറ്റ് ഗ്യാപ്പ്!",
-                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>ഗ്യാപ്പ് പരമാവധി കുറയ്ക്കാൻ താഴെ പറയുന്നതിൽ ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക:`,
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുക്കുക:`,
                   icon: "question",
                   input: "select",
                   inputOptions: optionsObj,
-                  inputPlaceholder: "ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക...",
                   showCancelButton: true,
                   confirmButtonText: "ചേർക്കൂ",
                   cancelButtonText: "വേണ്ട",
-                  inputValidator: (value) => {
-                    if (!value) return "ദയവായി ഒരു മരുന്ന് തിരഞ്ഞെടുക്കുക!";
-                  },
                 });
 
                 if (res.isConfirmed && res.value) {
-                  let suggestion = topMatches[res.value];
-                  suggestion.item.oldQty = 0;
-                  suggestion.item.qty = suggestion.qty;
-                  currentTotalPaise +=
-                    suggestion.item.ratePaise * suggestion.qty;
-                  selected.push(suggestion.item);
+                  let chosen = topMatches[res.value];
+                  if (chosen.type === "add") {
+                    chosen.item.oldQty = 0;
+                    chosen.item.qty = chosen.qty;
+                    currentTotalPaise += chosen.item.ratePaise * chosen.qty;
+                    selected.push(chosen.item);
+                  } else {
+                    chosen.remove.qty--;
+                    chosen.add.oldQty = 0;
+                    chosen.add.qty = 1;
+                    selected.push(chosen.add);
+                    currentTotalPaise =
+                      currentTotalPaise -
+                      chosen.remove.ratePaise +
+                      chosen.add.ratePaise;
+                  }
                 }
               }
             }
@@ -5972,122 +6008,131 @@
           }
         }
 
-        // 5. സ്മാർട്ട് സ്വാപ്പും ഗ്യാപ്പ് ഫില്ലിംഗും (നമ്മുടെ പഴയ മാജിക് - അൺലോക്ക് ചെയ്തവയ്ക്ക് മാത്രം)
+        // 5. സ്മാർട്ട് സ്വാപ്പും ഗ്യാപ്പ് ഫില്ലിംഗും (അൾട്ടിമേറ്റ് ഫിക്സ്)
         let finalDiff = availablePaiseForUnlocked - unlockedCurrentPaise;
 
         if (finalDiff > 50) {
           Swal.close();
-          let swapOptions = [];
-          let sortedSelected = unlockedSelected
-            .filter((i) => i.qty > 0)
-            .sort((a, b) => a.ratePaise - b.ratePaise);
+          let solvedInternally = false;
 
-          for (let sItem of sortedSelected) {
+          // =========================================================
+          // PHASE 1: ആദ്യം അകത്ത് (Selected List) മാത്രം നോക്കുന്നു (അനുമതി വേണ്ട)
+          // =========================================================
+          let internalSolutions = [];
+
+          unlockedSelected.forEach((u) => {
+            let addQty = Math.floor(finalDiff / u.ratePaise);
+            if (addQty > 0) {
+              let gap = finalDiff - u.ratePaise * addQty;
+              // മാറ്റം: 50 പൈസ ലിമിറ്റ് ഒഴിവാക്കി! പൈസ ബാക്കി വന്നാലും എടുക്കും.
+              internalSolutions.push({
+                type: "add",
+                item: u,
+                qty: addQty,
+                gapAfter: gap,
+              });
+            }
+            let addQtyUp = addQty + 1;
+            let overGap = finalDiff - u.ratePaise * addQtyUp;
+            if (overGap >= -49 && overGap < 0) {
+              internalSolutions.push({
+                type: "add",
+                item: u,
+                qty: addQtyUp,
+                gapAfter: overGap,
+              });
+            }
+          });
+
+          for (let sItem of unlockedSelected) {
             let targetRate = sItem.ratePaise + finalDiff;
-            let exactMatches = unlockedUnselected.filter((u) => {
+            let exactMatches = unlockedSelected.filter((u) => {
+              if (u.row === sItem.row) return false;
               let diffRate = u.ratePaise - targetRate;
               return diffRate <= 49 && diffRate >= -50;
             });
             exactMatches.forEach((match) => {
-              swapOptions.push({ add: match, remove: sItem });
+              let gap = finalDiff - (match.ratePaise - sItem.ratePaise);
+              internalSolutions.push({
+                type: "swap",
+                add: match,
+                remove: sItem,
+                gapAfter: gap,
+              });
             });
           }
 
-          if (swapOptions.length > 0) {
-            if (swapOptions.length === 1) {
-              let opt = swapOptions[0];
-              let cleanAdd = opt.add.name
-                .replace(/✏️/g, "")
-                .replace(/🗑️/g, "")
-                .replace(/\*/g, "")
-                .trim();
-              let cleanRem = opt.remove.name
-                .replace(/✏️/g, "")
-                .replace(/🗑️/g, "")
-                .replace(/\*/g, "")
-                .trim();
+          if (internalSolutions.length > 0) {
+            internalSolutions.sort(
+              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+            );
+            let best = internalSolutions[0];
 
-              const res = await Swal.fire({
-                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${cleanAdd}</b> ഒരെണ്ണം ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം. സമ്മതമാണോ?`,
-                icon: "question",
-                showCancelButton: true,
-                confirmButtonText: "അതെ",
-                cancelButtonText: "വേണ്ട",
-              });
-
-              if (res.isConfirmed) {
-                opt.remove.qty--;
-                opt.add.oldQty = 0;
-                opt.add.qty = 1;
-                unlockedSelected.push(opt.add);
+            // ബജറ്റ് ഇപ്പോഴുള്ളതിനേക്കാൾ കൂടുതൽ അടുക്കുമെങ്കിൽ മാത്രം തനിയെ ചെയ്യുന്നു!
+            if (Math.abs(best.gapAfter) < finalDiff) {
+              if (best.type === "add") {
+                best.item.qty += best.qty;
+                unlockedCurrentPaise += best.item.ratePaise * best.qty;
+              } else if (best.type === "swap") {
+                best.remove.qty--;
+                best.add.qty++;
                 unlockedCurrentPaise =
                   unlockedCurrentPaise -
-                  opt.remove.ratePaise +
-                  opt.add.ratePaise;
+                  best.remove.ratePaise +
+                  best.add.ratePaise;
               }
-            } else {
-              let optionsObj = {};
-              swapOptions.slice(0, 15).forEach((opt, index) => {
-                let cleanAdd = opt.add.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
-                let cleanRem = opt.remove.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
-                optionsObj[index] =
-                  `${cleanAdd} (പകരം 1 ${cleanRem} ഒഴിവാക്കും)`;
-              });
 
-              const res = await Swal.fire({
-                title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
-                html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br>താഴെ പറയുന്നതിൽ ഒന്ന് തിരഞ്ഞെടുത്താൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം:`,
-                icon: "success",
-                input: "select",
-                inputOptions: optionsObj,
-                showCancelButton: true,
-                confirmButtonText: "അഡ്ജസ്റ്റ് ചെയ്യുക",
-                cancelButtonText: "വേണ്ട",
-              });
+              finalDiff = availablePaiseForUnlocked - unlockedCurrentPaise; // ഗ്യാപ്പ് അപ്ഡേറ്റ് ചെയ്യുന്നു
 
-              if (res.isConfirmed && res.value) {
-                let chosen = swapOptions[res.value];
-                chosen.remove.qty--;
-                chosen.add.oldQty = 0;
-                chosen.add.qty = 1;
-                unlockedSelected.push(chosen.add);
-                unlockedCurrentPaise =
-                  unlockedCurrentPaise -
-                  chosen.remove.ratePaise +
-                  chosen.add.ratePaise;
+              if (finalDiff <= 50 && finalDiff >= -49) {
+                solvedInternally = true; // പൂർണ്ണമായും പരിഹരിച്ചു, ഇനി പുറത്തു പോകേണ്ട
               }
             }
-          } else {
-            let exactMatchingMedicines = [];
-            unlockedUnselected.forEach((u) => {
-              // ഇവിടെ Math.round മാറ്റി Math.floor ആക്കി! (എങ്കിലേ ബഡ്ജറ്റ് കവിയാതിരിക്കൂ)
-              let addQty = Math.floor(finalDiff / u.ratePaise);
+          }
 
+          // =========================================================
+          // PHASE 2: ഗ്യാപ്പ് ഇപ്പോഴും ബാക്കിയുണ്ടെങ്കിൽ മാത്രം പുറത്ത് നോക്കുന്നു (അനുമതി വേണം)
+          // =========================================================
+          if (!solvedInternally && finalDiff > 50) {
+            let externalSolutions = [];
+
+            let sortedSelected = unlockedSelected
+              .filter((i) => i.qty > 0)
+              .sort((a, b) => a.ratePaise - b.ratePaise);
+            for (let sItem of sortedSelected) {
+              let targetRate = sItem.ratePaise + finalDiff;
+              let exactMatches = unlockedUnselected.filter((u) => {
+                let diffRate = u.ratePaise - targetRate;
+                return diffRate <= 49 && diffRate >= -50;
+              });
+              exactMatches.forEach((match) => {
+                let gap = finalDiff - (match.ratePaise - sItem.ratePaise);
+                externalSolutions.push({
+                  type: "swap",
+                  add: match,
+                  remove: sItem,
+                  gapAfter: gap,
+                });
+              });
+            }
+
+            unlockedUnselected.forEach((u) => {
+              let addQty = Math.floor(finalDiff / u.ratePaise);
               if (addQty > 0) {
-                let remainingGap = finalDiff - u.ratePaise * addQty;
-                exactMatchingMedicines.push({
+                let gap = finalDiff - u.ratePaise * addQty;
+                // മാറ്റം: 50 പൈസ ലിമിറ്റ് ഒഴിവാക്കി!
+                externalSolutions.push({
+                  type: "add",
                   item: u,
                   qty: addQty,
-                  gapAfter: remainingGap,
+                  gapAfter: gap,
                 });
               }
-
-              // ഒരെണ്ണം കൂടി കൂടുതൽ ചേർത്താൽ (ബഡ്ജറ്റ് കവിയുമോ എന്ന് നോക്കാൻ)
               let addQtyUp = addQty + 1;
               let overGap = finalDiff - u.ratePaise * addQtyUp;
-
-              // മാജിക് ലോക്ക്: പരമാവധി 49 പൈസ മാത്രമേ മുകളിലേക്ക് പോകാവൂ!
               if (overGap >= -49 && overGap < 0) {
-                exactMatchingMedicines.push({
+                externalSolutions.push({
+                  type: "add",
                   item: u,
                   qty: addQtyUp,
                   gapAfter: overGap,
@@ -6095,56 +6140,100 @@
               }
             });
 
-            exactMatchingMedicines.sort(
-              (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
-            );
-
-            if (exactMatchingMedicines.length > 0) {
-              let topMatches = exactMatchingMedicines.slice(0, 15);
+            if (externalSolutions.length > 0) {
+              externalSolutions.sort(
+                (a, b) => Math.abs(a.gapAfter) - Math.abs(b.gapAfter),
+              );
+              let topMatches = externalSolutions.slice(0, 15);
 
               if (
                 topMatches.length === 1 &&
                 topMatches[0].gapAfter <= 50 &&
                 topMatches[0].gapAfter >= -49
               ) {
-                let matchInfo = topMatches[0];
-                let cleanName = matchInfo.item.name
-                  .replace(/✏️/g, "")
-                  .replace(/🗑️/g, "")
-                  .replace(/\*/g, "")
-                  .trim();
+                let best = topMatches[0];
+                let htmlText = "";
+                if (best.type === "add") {
+                  let cleanName = best.item.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  htmlText = `<b>${best.qty} എണ്ണം ${cleanName}</b> പുതിയതായി ചേർക്കട്ടെ?`;
+                } else {
+                  let cleanAdd = best.add.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  let cleanRem = best.remove.name
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  htmlText = `പുതിയതായി <b>${cleanAdd}</b> ചേർത്ത്, പകരം ഒരു <b>${cleanRem}</b> ഒഴിവാക്കിയാൽ ഗ്യാപ്പ് പൂജ്യമാക്കാം. സമ്മതമാണോ?`;
+                }
 
                 const res = await Swal.fire({
-                  title: "ബഡ്ജറ്റ് ഗ്യാപ്പ് ഫിൽ ചെയ്യാം!",
-                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br><b>${matchInfo.qty} എണ്ണം ${cleanName}</b> ചേർക്കട്ടെ?`,
+                  title: "ബഡ്ജറ്റ് കൃത്യമാക്കാം!",
+                  html: `₹ <b>${(finalDiff / 100).toFixed(2)}</b> ബാക്കിയുണ്ട്.<br><br>${htmlText}`,
                   icon: "question",
                   showCancelButton: true,
                   confirmButtonText: "അതെ",
                   cancelButtonText: "വേണ്ട",
                 });
+
                 if (res.isConfirmed) {
-                  matchInfo.item.oldQty = 0;
-                  matchInfo.item.qty = matchInfo.qty;
-                  unlockedCurrentPaise +=
-                    matchInfo.item.ratePaise * matchInfo.qty;
-                  unlockedSelected.push(matchInfo.item);
+                  if (best.type === "add") {
+                    best.item.oldQty = 0;
+                    best.item.qty = best.qty;
+                    unlockedCurrentPaise += best.item.ratePaise * best.qty;
+                    unlockedSelected.push(best.item);
+                  } else {
+                    best.remove.qty--;
+                    best.add.oldQty = 0;
+                    best.add.qty = 1;
+                    unlockedSelected.push(best.add);
+                    unlockedCurrentPaise =
+                      unlockedCurrentPaise -
+                      best.remove.ratePaise +
+                      best.add.ratePaise;
+                  }
                 }
               } else {
                 let optionsObj = {};
-                topMatches.forEach((matchInfo, index) => {
-                  let cleanName = matchInfo.item.name
-                    .replace(/✏️/g, "")
-                    .replace(/🗑️/g, "")
-                    .replace(/\*/g, "")
-                    .trim();
-                  let totalCost =
-                    (matchInfo.item.ratePaise * matchInfo.qty) / 100;
+                topMatches.forEach((match, index) => {
                   let gapText =
-                    matchInfo.gapAfter < 0
-                      ? `മുകളിൽ ₹ ${(Math.abs(matchInfo.gapAfter) / 100).toFixed(2)}`
-                      : `ബാക്കി ₹ ${(matchInfo.gapAfter / 100).toFixed(2)}`;
-                  optionsObj[index] =
-                    `${matchInfo.qty} എണ്ണം ${cleanName} - ₹ ${totalCost.toFixed(2)} (${gapText})`;
+                    match.gapAfter < 0
+                      ? `മുകളിൽ ₹${(Math.abs(match.gapAfter) / 100).toFixed(2)}`
+                      : `ബാക്കി ₹${(match.gapAfter / 100).toFixed(2)}`;
+
+                  // പേര് വെട്ടിച്ചുരുക്കുന്നില്ല, മുഴുവൻ പേരും കാണിക്കുന്നു!
+                  if (match.type === "add") {
+                    let cleanName = match.item.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+                    let totalCost = (match.item.ratePaise * match.qty) / 100;
+
+                    optionsObj[index] =
+                      `➕ ${match.qty}x ${cleanName} (₹${totalCost.toFixed(2)}) [${gapText}]`;
+                  } else {
+                    let cleanAdd = match.add.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+                    let cleanRem = match.remove.name
+                      .replace(/✏️/g, "")
+                      .replace(/🗑️/g, "")
+                      .replace(/\*/g, "")
+                      .trim();
+
+                    optionsObj[index] =
+                      `🔄 ➕ ${cleanAdd} | ➖ ${cleanRem} [${gapText}]`;
+                  }
                 });
 
                 const res = await Swal.fire({
@@ -6159,12 +6248,22 @@
                 });
 
                 if (res.isConfirmed && res.value) {
-                  let suggestion = topMatches[res.value];
-                  suggestion.item.oldQty = 0;
-                  suggestion.item.qty = suggestion.qty;
-                  unlockedCurrentPaise +=
-                    suggestion.item.ratePaise * suggestion.qty;
-                  unlockedSelected.push(suggestion.item);
+                  let chosen = topMatches[res.value];
+                  if (chosen.type === "add") {
+                    chosen.item.oldQty = 0;
+                    chosen.item.qty = chosen.qty;
+                    unlockedCurrentPaise += chosen.item.ratePaise * chosen.qty;
+                    unlockedSelected.push(chosen.item);
+                  } else {
+                    chosen.remove.qty--;
+                    chosen.add.oldQty = 0;
+                    chosen.add.qty = 1;
+                    unlockedSelected.push(chosen.add);
+                    unlockedCurrentPaise =
+                      unlockedCurrentPaise -
+                      chosen.remove.ratePaise +
+                      chosen.add.ratePaise;
+                  }
                 }
               }
             }
