@@ -44,6 +44,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
     <style>
       :root {
         --primary-color: #2c3e50;
@@ -1439,6 +1442,29 @@
       </div>
     </div>
     <div class="file-manager-container">
+      <div
+        id="cloud-status-bar"
+        style="
+          text-align: right;
+          font-size: 13px;
+          margin-bottom: 10px;
+          font-weight: bold;
+          color: #d9534f;
+        "
+      >
+        🔴 Cloud Sync Offline
+        <span
+          style="
+            cursor: pointer;
+            color: #007bff;
+            text-decoration: underline;
+            margin-left: 5px;
+          "
+          onclick="loginWithGoogle()"
+          >[Login to Cloud]</span
+        >
+      </div>
+
       <div class="fm-group budget-group">
         <label class="fm-label">Total Budget (₹):</label>
         <input
@@ -1453,6 +1479,7 @@
         />
       </div>
       <div class="fm-separator"></div>
+
       <div class="fm-group load-group">
         <label class="fm-label hidden-label">Select Indent</label>
         <div class="fm-row">
@@ -1468,6 +1495,7 @@
         </div>
       </div>
       <div class="fm-separator"></div>
+
       <div class="fm-group save-group">
         <label class="fm-label hidden-label">File Name</label>
         <div class="fm-row">
@@ -1477,8 +1505,15 @@
             placeholder="File Name"
             class="fm-input"
           />
-          <button onclick="saveNewIndent()" class="btn-action btn-json">
-            JSON ↓
+          <button
+            onclick="saveNewIndent()"
+            class="btn-action btn-save"
+            style="background-color: #28a745; color: white"
+          >
+            SAVE 💾
+          </button>
+          <button onclick="exportToJson()" class="btn-action btn-json">
+            JSON ⬇️
           </button>
           <label for="importJsonFile" class="btn-action btn-import">
             IMPORT 📂
@@ -1854,8 +1889,84 @@
       </div>
     </div>
     <script>
+      // ==========================================
+      // FIREBASE SETUP & CLOUD LOGIN LOGIC
+      // ==========================================
+
+      // 1. താങ്കൾ കോപ്പി ചെയ്ത ഫയർബേസ് കോൺഫിഗറേഷൻ
+      const firebaseConfig = {
+        apiKey: "AIzaSyCzcA3NAKHAUlqYhbONdcQnhNfusLYCHj0",
+        authDomain: "indent-maker.firebaseapp.com",
+        projectId: "indent-maker",
+        storageBucket: "indent-maker.firebasestorage.app",
+        messagingSenderId: "249631375374",
+        appId: "1:249631375374:web:0985b7ee0bfd3e5851fc5f",
+      };
+
+      // 2. ഫയർബേസ് ആക്റ്റീവ് ആക്കുന്നു
+      firebase.initializeApp(firebaseConfig);
+      const auth = firebase.auth();
+      const db = firebase.firestore();
+
+      let currentUser = null; // ലോഗിൻ ചെയ്ത യൂസറുടെ വിവരങ്ങൾ ഇതിൽ സൂക്ഷിക്കും
+
+      // 3. ലോഗിൻ സ്റ്റാറ്റസ് മാറുന്നത് നിരീക്ഷിക്കാനുള്ള സംവിധാനം
+      auth.onAuthStateChanged((user) => {
+        const statusBar = document.getElementById("cloud-status-bar");
+
+        if (user) {
+          // യൂസർ ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ
+          currentUser = user;
+          statusBar.innerHTML = `🟢 Synced to Cloud as <b>${user.displayName}</b> <span style="cursor: pointer; color: #d9534f; text-decoration: underline; margin-left: 10px;" onclick="logoutFromCloud()">[Logout]</span>`;
+
+          // ലോഗിൻ ചെയ്യുമ്പോൾ മാത്രം ക്ലൗഡിൽ നിന്നുള്ള ഫയലുകൾ ലോഡ് ചെയ്യാൻ ഇവിടെ കോഡ് വെക്കും (അടുത്ത ഘട്ടത്തിൽ)
+          updateIndentDropdown();
+        } else {
+          // യൂസർ ലോഗിൻ ചെയ്തിട്ടില്ലെങ്കിൽ
+          currentUser = null;
+          statusBar.innerHTML = `🔴 Cloud Sync Offline <span style="cursor: pointer; color: #007bff; text-decoration: underline; margin-left: 5px;" onclick="loginWithGoogle()">[Login to Cloud]</span>`;
+        }
+      });
+
+      // 4. ഗൂഗിൾ വഴി ലോഗിൻ ചെയ്യാനുള്ള ഫംഗ്ഷൻ (സ്റ്റാറ്റസ് ബാറിൽ ക്ലിക്ക് ചെയ്യുമ്പോൾ വർക്ക് ആകും)
+      function loginWithGoogle() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        auth
+          .signInWithPopup(provider)
+          .then((result) => {
+            Swal.fire({
+              icon: "success",
+              title: "ലോഗിൻ വിജയിച്ചു!",
+              text: `സ്വാഗതം ${result.user.displayName}. ഇനി ഇൻഡന്റുകൾ ക്ലൗഡിൽ സുരക്ഷിതമായി സേവ് ചെയ്യാം.`,
+              timer: 3000,
+              showConfirmButton: false,
+            });
+          })
+          .catch((error) => {
+            Swal.fire(
+              "Error",
+              "ലോഗിൻ പരാജയപ്പെട്ടു: " + error.message,
+              "error",
+            );
+          });
+      }
+
+      // 5. ലോഗൗട്ട് ചെയ്യാനുള്ള ഫംഗ്ഷൻ
+      function logoutFromCloud() {
+        auth.signOut().then(() => {
+          Swal.fire({
+            icon: "info",
+            title: "ലോഗൗട്ട് ചെയ്തു",
+            text: "നിങ്ങൾ ഇപ്പോൾ ഡാറ്റ ലോക്കൽ മോഡിലാണ് സേവ് ചെയ്യുന്നത്.",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+          // ലോഗൗട്ട് ചെയ്യുമ്പോൾ ഡ്രോപ്പ്ഡൗണിൽ നിന്ന് ക്ലൗഡ് ഫയലുകൾ മാറാൻ പേജ് ഒന്ന് റിഫ്രഷ് ചെയ്യുന്നു
+          setTimeout(() => location.reload(), 2000);
+        });
+      }
       (function autoUpdateCache() {
-        const currentAppVersion = "4.1";
+        const currentAppVersion = "4.2";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
@@ -4655,13 +4766,14 @@
           }
         });
       }
-      function saveDraft() {
+      // ------------------------------------------------------------------
+      // 1. ഓട്ടോ-സേവ് ഫംഗ്ഷൻ (ബാക്ക്ഗ്രൗണ്ടിൽ വർക്ക് ചെയ്യുന്നത്)
+      // ------------------------------------------------------------------
+      async function saveDraft() {
         const draftData = {};
         const inputs = document.querySelectorAll(".qty-input");
         inputs.forEach((input, index) => {
-          // parseFloat മാറ്റി parseInt ആക്കി മാറ്റുന്നു
           let qty = parseInt(input.value);
-
           if (qty && qty > 0) {
             const row = input.closest("tr");
             const nameCell = row.querySelector(".med-name");
@@ -4670,18 +4782,37 @@
               .replace(/🗑️/g, "")
               .replace(/\*/g, "")
               .trim();
-
-            // കുത്തോ മറ്റോ അബദ്ധത്തിൽ അടിച്ചാലും അത് പൂർണ്ണസംഖ്യയായി മാത്രം സേവ് ആകും
             draftData[cleanName] = qty.toString();
           }
         });
+
         const info = {
           details: document.getElementById("inst-details").value,
           budget: document.getElementById("total-budget").value,
           type: document.getElementById("indent-type").value,
         };
+
+        // എപ്പോഴും ലോക്കൽ സ്റ്റോറേജിൽ സേവ് ചെയ്യുന്നു (ബാക്കപ്പിന് വേണ്ടി)
         localStorage.setItem("rubun_draft", JSON.stringify(draftData));
         localStorage.setItem("rubun_info", JSON.stringify(info));
+
+        // യൂസർ ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ മാത്രം ഒരു കോപ്പികൂടി സൈലന്റ് ആയി ക്ലൗഡിലേക്ക് അപ്ഡേറ്റ് ചെയ്യുന്നു (Auto-sync)
+        if (typeof currentUser !== "undefined" && currentUser) {
+          try {
+            await db
+              .collection("users")
+              .doc(currentUser.uid)
+              .collection("auto_draft")
+              .doc("working_draft")
+              .set({
+                draftData: draftData,
+                info: info,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+              });
+          } catch (e) {
+            console.log("Silent Cloud Save Error: ", e);
+          }
+        }
       }
       window.onload = function () {
         if (typeof updateIndentDropdown === "function") {
@@ -4845,27 +4976,64 @@
           }
         }, 4000);
       }
-      function updateIndentDropdown() {
+      // =========================================================
+      // ക്ലൗഡിൽ നിന്നും ഫോണിൽ നിന്നും ഫയലുകളുടെ പേരുകൾ ലിസ്റ്റിൽ കാണിക്കാൻ
+      // =========================================================
+      async function updateIndentDropdown() {
         const dropdown = document.getElementById("savedIndentsList");
         dropdown.innerHTML =
           '<option value="">-- Select a saved indent --</option>';
+
+        let addedKeys = new Set(); // ഒരേ ഫയൽ രണ്ടുതവണ വരാതിരിക്കാൻ
+
+        // 1. ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ ആദ്യം ക്ലൗഡിൽ നിന്ന് ഫയലുകൾ എടുക്കുന്നു
+        if (typeof currentUser !== "undefined" && currentUser) {
+          try {
+            const snapshot = await db
+              .collection("users")
+              .doc(currentUser.uid)
+              .collection("indents")
+              .get();
+            snapshot.forEach((doc) => {
+              const key = doc.id;
+              const option = document.createElement("option");
+              option.value = key;
+              // പേരിന്റെ കൂടെ ഒരു Cloud ഐക്കൺ കൊടുക്കുന്നു
+              option.text = key.replace("IND_", "") + " ☁️ (Cloud)";
+              dropdown.add(option);
+              addedKeys.add(key); // ഇത് ക്ലൗഡിൽ ഉണ്ടെന്ന് രേഖപ്പെടുത്തുന്നു
+            });
+          } catch (error) {
+            console.log("ക്ലൗഡ് ഫയലുകൾ എടുക്കുന്നതിൽ എറർ: ", error);
+          }
+        }
+
+        // 2. ബാക്കിയുള്ളവ ബ്രൗസറിൽ (Local Storage) നിന്ന് എടുക്കുന്നു
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i);
           if (key.startsWith("IND_")) {
-            const option = document.createElement("option");
-            option.value = key;
-            option.text = key.replace("IND_", "");
-            dropdown.add(option);
+            // ഈ ഫയൽ നേരത്തെ ക്ലൗഡിൽ നിന്ന് ലിസ്റ്റിൽ വന്നിട്ടില്ലെങ്കിൽ മാത്രം കാണിക്കുക
+            if (!addedKeys.has(key)) {
+              const option = document.createElement("option");
+              option.value = key;
+              // പേരിന്റെ കൂടെ ഒരു Local ഐക്കൺ കൊടുക്കുന്നു
+              option.text = key.replace("IND_", "") + " 💻 (Local)";
+              dropdown.add(option);
+            }
           }
         }
       }
-      function saveNewIndent() {
+      // ------------------------------------------------------------------
+      // 2. സേവ് ബട്ടൺ ഫംഗ്ഷൻ (ക്ലൗഡിലേക്കും ലോക്കലിലേക്കും സേവ് ചെയ്യാൻ)
+      // ------------------------------------------------------------------
+      async function saveNewIndent() {
         const nameInput = document.getElementById("newIndentName");
         const name = nameInput.value.trim();
         if (!name) {
-          Swal.fire("Attention!", "ദയവായി ഒരു പേര് നൽകുക!", "warning");
+          Swal.fire("Attention!", "ദയവായി ഫയലിന് ഒരു പേര് നൽകുക!", "warning");
           return;
         }
+
         const now = new Date();
         const ts =
           now.getFullYear().toString().slice(-2) +
@@ -4877,7 +5045,6 @@
         const finalFileName = name + "_" + ts;
         const key = "IND_" + finalFileName;
 
-        // 1. മരുന്നുകളുടെ എണ്ണം 'പേര്' വെച്ച് സേവ് ചെയ്യുന്നു (ഇൻഡക്സ് മാറുന്ന പ്രശ്നം ഒഴിവാക്കാൻ)
         const data = {};
         document.querySelectorAll(".qty-input").forEach((input) => {
           if (parseFloat(input.value) > 0) {
@@ -4892,21 +5059,97 @@
           }
         });
 
-        // 2. പുതിയ മാറ്റം: നിലവിൽ ആപ്പിലുള്ള പുതിയ മരുന്നുകൾ മുഴുവനായി എടുക്കുന്നു
         const savedCustomMed =
           JSON.parse(localStorage.getItem("customMedicines")) || [];
 
-        // 3. എല്ലാം കൂടി JSON-ലേക്ക് പാക്ക് ചെയ്യുന്നു
         const fullData = {
           fileName: finalFileName,
           inst: document.getElementById("inst-details").value,
           budget: document.getElementById("total-budget").value,
           type: document.getElementById("indent-type").value,
           quantities: data,
-          customData: savedCustomMed, // <-- പുതിയ മരുന്നുകളുടെ മുഴുവൻ വിവരങ്ങളും ഇതിൽ ഉണ്ടാകും!
+          customData: savedCustomMed,
+          saveDate: now.toISOString(),
         };
 
-        localStorage.setItem(key, JSON.stringify(fullData));
+        // ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ ക്ലൗഡിലേക്ക്, ഇല്ലെങ്കിൽ ബ്രൗസറിലേക്ക്!
+        if (typeof currentUser !== "undefined" && currentUser) {
+          try {
+            await db
+              .collection("users")
+              .doc(currentUser.uid)
+              .collection("indents")
+              .doc(key)
+              .set(fullData);
+            Swal.fire(
+              "Saved to Cloud ☁️",
+              `'${finalFileName}' ക്ലൗഡിൽ സുരക്ഷിതമായി സേവ് ചെയ്തു.`,
+              "success",
+            );
+          } catch (error) {
+            Swal.fire(
+              "Error",
+              "ക്ലൗഡ് സേവിംഗ് പരാജയപ്പെട്ടു: " + error.message,
+              "error",
+            );
+          }
+        } else {
+          localStorage.setItem(key, JSON.stringify(fullData));
+          Swal.fire(
+            "Saved Locally 💻",
+            `'${finalFileName}' ബ്രൗസറിൽ സേവ് ചെയ്തു.`,
+            "success",
+          );
+        }
+
+        if (typeof updateIndentDropdown === "function") updateIndentDropdown();
+        nameInput.value = "";
+      }
+
+      // ------------------------------------------------------------------
+      // 3. JSON ഡൗൺലോഡ് ചെയ്യാൻ മാത്രമുള്ള പുതിയ ഫംഗ്ഷൻ (Export)
+      // ------------------------------------------------------------------
+      function exportToJson() {
+        let name = document.getElementById("newIndentName").value.trim();
+        if (!name) name = "Exported_Indent"; // പേര് കൊടുത്തില്ലെങ്കിലും ഡൗൺലോഡ് ആവാൻ
+
+        const now = new Date();
+        const ts =
+          now.getFullYear().toString().slice(-2) +
+          ("0" + (now.getMonth() + 1)).slice(-2) +
+          ("0" + now.getDate()).slice(-2) +
+          "_" +
+          ("0" + now.getHours()).slice(-2) +
+          ("0" + now.getMinutes()).slice(-2);
+        const finalFileName = name + "_" + ts;
+
+        const data = {};
+        document.querySelectorAll(".qty-input").forEach((input) => {
+          if (parseFloat(input.value) > 0) {
+            const row = input.closest("tr");
+            const nameCell = row.querySelector(".med-name");
+            let cleanName = nameCell.childNodes[0].textContent
+              .replace(/✏️/g, "")
+              .replace(/🗑️/g, "")
+              .replace(/\*/g, "")
+              .trim();
+            data[cleanName] = input.value;
+          }
+        });
+
+        const savedCustomMed =
+          JSON.parse(localStorage.getItem("customMedicines")) || [];
+
+        const fullData = {
+          fileName: finalFileName,
+          inst: document.getElementById("inst-details").value,
+          budget: document.getElementById("total-budget").value,
+          type: document.getElementById("indent-type").value,
+          quantities: data,
+          customData: savedCustomMed,
+        };
+
+        // JSON ഡൗൺലോഡ് ചെയ്യുന്ന ഭാഗം (സാറിന്റെ പഴയ കോഡ് തന്നെ)
         const blob = new Blob([JSON.stringify(fullData, null, 2)], {
           type: "application/json",
         });
@@ -4918,25 +5161,63 @@
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        if (typeof updateIndentDropdown === "function") updateIndentDropdown();
-        nameInput.value = "";
-        Swal.fire(
-          "Saved!",
-          "'" +
-            finalFileName +
-            "' സേവ് ചെയ്യുകയും ഡൗൺലോഡ് ചെയ്യുകയും ചെയ്തിരിക്കുന്നു.",
-          "success",
-        );
       }
-      function loadSelectedIndent() {
+
+      // =========================================================
+      // ക്ലൗഡിൽ നിന്നും ഫോണിൽ നിന്നും ഇൻഡന്റ് ലോഡ് ചെയ്യാനുള്ള ഫംഗ്ഷൻ
+      // =========================================================
+      async function loadSelectedIndent() {
         const key = document.getElementById("savedIndentsList").value;
         if (!key) {
           return Swal.fire({ title: "Select a file!", icon: "warning" });
         }
 
+        let savedData = null;
+
+        // 1. ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ ആദ്യം ക്ലൗഡിൽ (Firebase) നിന്ന് എടുക്കാൻ ശ്രമിക്കുക
+        if (typeof currentUser !== "undefined" && currentUser) {
+          // ലോഡ് ആകുമ്പോൾ ഒരു ചെറിയ ആനിമേഷൻ കാണിക്കാൻ
+          Swal.fire({
+            title: "Loading...",
+            text: "ക്ലൗഡിൽ നിന്നും ഫയൽ എടുക്കുന്നു ☁️",
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading(),
+          });
+
+          try {
+            const docRef = await db
+              .collection("users")
+              .doc(currentUser.uid)
+              .collection("indents")
+              .doc(key)
+              .get();
+            if (docRef.exists) {
+              savedData = docRef.data(); // ക്ലൗഡിൽ നിന്ന് കിട്ടി!
+            } else {
+              savedData = JSON.parse(localStorage.getItem(key)); // ക്ലൗഡിൽ ഇല്ലെങ്കിൽ ഫോണിൽ നിന്ന് എടുക്കുന്നു
+            }
+            Swal.close(); // ലോഡിങ് വിൻഡോ മാറ്റുന്നു
+          } catch (error) {
+            console.log("Cloud load error:", error);
+            savedData = JSON.parse(localStorage.getItem(key));
+            Swal.close();
+          }
+        } else {
+          // 2. ലോഗിൻ ചെയ്തിട്ടില്ലെങ്കിൽ നേരിട്ട് ഫോണിൽ (Local Storage) നിന്ന് എടുക്കുന്നു
+          savedData = JSON.parse(localStorage.getItem(key));
+        }
+
+        // ഫയൽ കിട്ടിയില്ലെങ്കിൽ ഒരു എറർ മെസ്സേജ്
+        if (!savedData) {
+          return Swal.fire("Error", "ഈ ഫയൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല!", "error");
+        }
+
+        // =========================================================
+        // --- ഇതിനു താഴെ സാറിന്റെ പഴയ കോഡ് യാതൊരു മാറ്റവുമില്ലാതെ ---
+        // =========================================================
+
         if (typeof loadMedicines === "function") loadMedicines();
 
-        const savedData = JSON.parse(localStorage.getItem(key));
         document.getElementById("inst-details").value = savedData.inst || "";
         document.getElementById("total-budget").value = savedData.budget || "";
         const input = document.getElementById("indent-type");
@@ -4957,6 +5238,7 @@
         } else {
           input.style.display = "none";
         }
+
         const rows = document.querySelectorAll("#product-body tr");
         let counter = 1;
         rows.forEach((row) => {
@@ -4976,7 +5258,6 @@
           if (!isNaN(savedKey)) {
             // 1. പഴയ ഫയൽ ആണെങ്കിൽ (അതായത് നമ്പർ ആണെങ്കിൽ)
             let oldIndex = parseInt(savedKey);
-            // നമ്മുടെ പഴയ ഡിക്ഷണറിയിൽ ആ നമ്പറിൽ ഏത് പേരായിരുന്നു എന്ന് തപ്പുന്നു
             if (typeof oldRawData !== "undefined" && oldRawData[oldIndex]) {
               searchName = oldRawData[oldIndex];
             } else {
@@ -4989,7 +5270,6 @@
 
           // 3. കിട്ടിയ പേര് വെച്ച് പുതിയ ടേബിളിൽ മരുന്ന് എവിടെയാണെന്ന് കണ്ടുപിടിക്കുന്നു!
           if (searchName) {
-            // പേരിലെ സ്പേസുകളും മറ്റ് ചിഹ്നങ്ങളും പൂർണ്ണമായും ഒഴിവാക്കി അക്ഷരങ്ങൾ മാത്രമെടുക്കുന്നു
             let cleanSearchName = searchName
               .replace(/[^a-zA-Z0-9]/g, "")
               .toLowerCase();
@@ -4997,11 +5277,9 @@
             rows.forEach((row) => {
               let nameCell = row.querySelector(".med-name");
               if (nameCell) {
-                // പുതിയ ടേബിളിലെ പേരും ഇതേപോലെ സ്പേസെല്ലാം കളഞ്ഞ് എടുക്കുന്നു (ഇമോജികളും തനിയെ പോകും)
                 let cleanName = nameCell.textContent
                   .replace(/[^a-zA-Z0-9]/g, "")
                   .toLowerCase();
-
                 if (cleanName === cleanSearchName) {
                   targetRow = row;
                 }
@@ -5023,7 +5301,6 @@
               ).toFixed(2);
             }
           } else {
-            // കണ്ടുപിടിക്കാൻ കഴിഞ്ഞില്ലെങ്കിൽ ഡെവലപ്പർക്ക് കാണാൻ (F12)
             console.log(
               "ടേബിളിൽ ഈ മരുന്ന് കണ്ടുപിടിക്കാൻ കഴിഞ്ഞില്ല:",
               searchName,
@@ -5041,7 +5318,7 @@
         saveDraft();
         Swal.fire({
           title: "Loaded!",
-          text: "ഇൻഡന്‍റ് ലോഡ് ചെയ്തിരിക്കുന്നു.",
+          text: "ഇൻഡന്‍റ് വിജയകരമായി ലോഡ് ചെയ്തിരിക്കുന്നു.",
           icon: "success",
           timer: 1500,
           showConfirmButton: false,
