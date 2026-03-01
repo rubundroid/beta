@@ -5026,6 +5026,9 @@
       // ------------------------------------------------------------------
       // 2. സേവ് ബട്ടൺ ഫംഗ്ഷൻ (ക്ലൗഡിലേക്കും ലോക്കലിലേക്കും സേവ് ചെയ്യാൻ)
       // ------------------------------------------------------------------
+      // ------------------------------------------------------------------
+      // 2. സേവ് ബട്ടൺ ഫംഗ്ഷൻ (SweetAlert ലോഡിങ് പ്രശ്നം പരിഹരിച്ചത്)
+      // ------------------------------------------------------------------
       async function saveNewIndent() {
         const nameInput = document.getElementById("newIndentName");
         const name = nameInput.value.trim();
@@ -5034,76 +5037,104 @@
           return;
         }
 
-        const now = new Date();
-        const ts =
-          now.getFullYear().toString().slice(-2) +
-          ("0" + (now.getMonth() + 1)).slice(-2) +
-          ("0" + now.getDate()).slice(-2) +
-          "_" +
-          ("0" + now.getHours()).slice(-2) +
-          ("0" + now.getMinutes()).slice(-2);
-        const finalFileName = name + "_" + ts;
-        const key = "IND_" + finalFileName;
+        // യൂസർ ലോഗിൻ ചെയ്തിട്ടുണ്ടോ എന്ന് ആദ്യം തന്നെ നോക്കുന്നു
+        const isCloudSave = typeof currentUser !== "undefined" && currentUser;
 
-        const data = {};
-        document.querySelectorAll(".qty-input").forEach((input) => {
-          if (parseFloat(input.value) > 0) {
-            const row = input.closest("tr");
-            const nameCell = row.querySelector(".med-name");
-            let cleanName = nameCell.childNodes[0].textContent
-              .replace(/✏️/g, "")
-              .replace(/🗑️/g, "")
-              .replace(/\*/g, "")
-              .trim();
-            data[cleanName] = input.value;
-          }
-        });
+        // ക്ലൗഡിലേക്ക് ആണെങ്കിൽ മാത്രം ലോഡിങ് സ്ക്രീൻ കാണിക്കുക
+        if (isCloudSave) {
+          Swal.fire({
+            title: "Saving...",
+            text: "ക്ലൗഡിലേക്ക് സേവ് ചെയ്യുന്നു ☁️ ദയവായി കാത്തിരിക്കുക...",
+            allowOutsideClick: false,
+            didOpen: () => {
+              Swal.showLoading();
+            },
+          });
+        }
 
-        const savedCustomMed =
-          JSON.parse(localStorage.getItem("customMedicines")) || [];
+        try {
+          const now = new Date();
+          const ts =
+            now.getFullYear().toString().slice(-2) +
+            ("0" + (now.getMonth() + 1)).slice(-2) +
+            ("0" + now.getDate()).slice(-2) +
+            "_" +
+            ("0" + now.getHours()).slice(-2) +
+            ("0" + now.getMinutes()).slice(-2);
+          const finalFileName = name + "_" + ts;
+          const key = "IND_" + finalFileName;
 
-        const fullData = {
-          fileName: finalFileName,
-          inst: document.getElementById("inst-details").value,
-          budget: document.getElementById("total-budget").value,
-          type: document.getElementById("indent-type").value,
-          quantities: data,
-          customData: savedCustomMed,
-          saveDate: now.toISOString(),
-        };
+          const data = {};
+          document.querySelectorAll(".qty-input").forEach((input) => {
+            let qtyVal = parseFloat(input.value);
+            if (!isNaN(qtyVal) && qtyVal > 0) {
+              const row = input.closest("tr");
+              if (row) {
+                const nameCell = row.querySelector(".med-name");
+                if (nameCell && nameCell.childNodes.length > 0) {
+                  let cleanName = nameCell.childNodes[0].textContent
+                    .replace(/✏️/g, "")
+                    .replace(/🗑️/g, "")
+                    .replace(/\*/g, "")
+                    .trim();
+                  data[cleanName] = input.value.toString();
+                }
+              }
+            }
+          });
 
-        // ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ ക്ലൗഡിലേക്ക്, ഇല്ലെങ്കിൽ ബ്രൗസറിലേക്ക്!
-        if (typeof currentUser !== "undefined" && currentUser) {
-          try {
+          const savedCustomMed =
+            JSON.parse(localStorage.getItem("customMedicines")) || [];
+
+          const fullData = {
+            fileName: finalFileName,
+            inst: document.getElementById("inst-details").value || "",
+            budget: document.getElementById("total-budget").value || "",
+            type: document.getElementById("indent-type").value || "",
+            quantities: data,
+            customData: savedCustomMed,
+            saveDate: now.toISOString(),
+          };
+
+          const cleanFirebaseData = JSON.parse(JSON.stringify(fullData));
+
+          // ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ ക്ലൗഡിലേക്ക്
+          if (isCloudSave) {
             await db
               .collection("users")
               .doc(currentUser.uid)
               .collection("indents")
               .doc(key)
-              .set(fullData);
+              .set(cleanFirebaseData);
+            Swal.close(); // പഴയ ലോഡിങ് ബോക്സ് നിർബന്ധമായും ക്ലോസ് ചെയ്യുന്നു
             Swal.fire(
               "Saved to Cloud ☁️",
               `'${finalFileName}' ക്ലൗഡിൽ സുരക്ഷിതമായി സേവ് ചെയ്തു.`,
               "success",
             );
-          } catch (error) {
+          }
+          // ലോഗിൻ ചെയ്തിട്ടില്ലെങ്കിൽ ബ്രൗസറിലേക്ക്! (ഇവിടെ ലോഡിങ് ബോക്സ് ഇല്ലാത്തതുകൊണ്ട് ഹാങ്ങ് ആവില്ല)
+          else {
+            localStorage.setItem(key, JSON.stringify(cleanFirebaseData));
             Swal.fire(
-              "Error",
-              "ക്ലൗഡ് സേവിംഗ് പരാജയപ്പെട്ടു: " + error.message,
-              "error",
+              "Saved Locally 💻",
+              `'${finalFileName}' ബ്രൗസറിൽ സേവ് ചെയ്തു.`,
+              "success",
             );
           }
-        } else {
-          localStorage.setItem(key, JSON.stringify(fullData));
+
+          if (typeof updateIndentDropdown === "function")
+            updateIndentDropdown();
+          nameInput.value = "";
+        } catch (error) {
+          if (isCloudSave) Swal.close(); // എറർ വന്നാലും ലോഡിങ് ക്ലോസ് ചെയ്യണം
+          console.error("Save Error: ", error);
           Swal.fire(
-            "Saved Locally 💻",
-            `'${finalFileName}' ബ്രൗസറിൽ സേവ് ചെയ്തു.`,
-            "success",
+            "Error",
+            "സേവിംഗ് പരാജയപ്പെട്ടു: " + error.message,
+            "error",
           );
         }
-
-        if (typeof updateIndentDropdown === "function") updateIndentDropdown();
-        nameInput.value = "";
       }
 
       // ------------------------------------------------------------------
@@ -5391,80 +5422,84 @@
           updateIndentDropdown();
         }
       }
-      function importJsonData(input) {
+      // =========================================================
+      // JSON ഫയൽ ഇമ്പോർട്ട് ചെയ്യാനുള്ള പുതിയ സ്മാർട്ട് ഫംഗ്ഷൻ
+      // =========================================================
+      async function importJsonData(input) {
         const file = input.files[0];
-        if (!file) return;
+        if (!file) {
+          Swal.fire("Error", "No file selected!", "error");
+          return;
+        }
+
         const reader = new FileReader();
-
-        reader.onload = function (e) {
+        reader.onload = async function (e) {
           try {
-            const data = JSON.parse(e.target.result);
-            const fileName =
-              data.fileName || "Imported_Indent_" + new Date().getTime();
-            const key = "IND_" + fileName;
+            const importedData = JSON.parse(e.target.result);
 
-            // 1. ഫയലിൽ പുതിയ മരുന്നുകൾ ഉണ്ടെങ്കിൽ സിസ്റ്റത്തിലേക്ക് ചേർക്കുന്നു
-            if (data.customData && data.customData.length > 0) {
-              let existingCustomMeds =
-                JSON.parse(localStorage.getItem("customMedicines")) || [];
-              let isUpdated = false;
-
-              data.customData.forEach((importedMed) => {
-                let exists = existingCustomMeds.find(
-                  (med) => med.name === importedMed.name,
-                );
-                if (!exists) {
-                  importedMed.type = "NEW ADDED";
-                  existingCustomMeds.push(importedMed);
-                  isUpdated = true;
-                }
-              });
-
-              // പുതിയ മരുന്നുകൾ വന്നതുകൊണ്ട് ടേബിൾ ഒന്നുകൂടി വരയ്ക്കുന്നു
-              if (isUpdated) {
-                localStorage.setItem(
-                  "customMedicines",
-                  JSON.stringify(existingCustomMeds),
-                );
-                if (typeof loadMedicines === "function") loadMedicines();
-              }
+            // ഇതൊരു കൃത്യമായ ഇൻഡന്റ് ഫയൽ തന്നെയാണോ എന്ന് പരിശോധിക്കാൻ
+            if (!importedData.fileName || !importedData.quantities) {
+              Swal.fire("Error", "ഇതൊരു കൃത്യമായ ഇൻഡന്റ് ഫയൽ അല്ല!", "error");
+              input.value = ""; // ഫയൽ ഇൻപുട്ട് ക്ലിയർ ചെയ്യുന്നു
+              return;
             }
 
-            // 2. ഇമ്പോർട്ട് ചെയ്ത ഇൻഡൻ്റ് ഡാറ്റ സിസ്റ്റത്തിൽ സേവ് ചെയ്യുന്നു
-            localStorage.setItem(key, JSON.stringify(data));
+            const key = "IND_" + importedData.fileName;
 
-            // 3. സേവ് ചെയ്തവ ലിസ്റ്റിലേക്ക് (Dropdown) ഈ പുതിയ ഫയൽ ചേർക്കുന്നു
-            if (typeof updateIndentDropdown === "function") {
-              updateIndentDropdown();
-            }
-
-            // 4. ഡ്രോപ്പ്ഡൗണിൽ ഈ പുതിയ ഫയൽ തനിയെ സെലക്ട് ചെയ്യുന്നു
-            const dropdown = document.getElementById("savedIndentsList");
-            if (dropdown) {
-              dropdown.value = key;
-            }
-
-            // 5. മാജിക്! യൂസറെക്കൊണ്ട് LOAD അമർത്തിക്കാതെ, നമ്മൾ തന്നെ മാജിക് ഫംഗ്ഷൻ വിളിക്കുന്നു
-            if (typeof loadSelectedIndent === "function") {
-              loadSelectedIndent(); // ഇതിലൂടെ ടേബിളിലേക്ക് ഡാറ്റ തനിയെ വരും!
-            } else {
+            // ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ -> ക്ലൗഡിലേക്ക് ഇമ്പോർട്ട് ചെയ്യുന്നു
+            if (typeof currentUser !== "undefined" && currentUser) {
+              // ഒരു ചെറിയ ലോഡിങ് സ്ക്രീൻ കാണിക്കാൻ
               Swal.fire({
-                title: "Import Success!",
-                text: "ഫയൽ വിജയകരമായി ചേർത്തു. ഇനി LOAD ബട്ടൺ അമർത്താം.",
-                icon: "success",
+                title: "Importing...",
+                text: "ഫയൽ ക്ലൗഡിലേക്ക് സേവ് ചെയ്യുന്നു ☁️",
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading(),
               });
+
+              await db
+                .collection("users")
+                .doc(currentUser.uid)
+                .collection("indents")
+                .doc(key)
+                .set(importedData);
+              Swal.close();
+
+              Swal.fire(
+                "Imported to Cloud ☁️",
+                "ഫയൽ ക്ലൗഡിലേക്ക് വിജയകരമായി ഇമ്പോർട്ട് ചെയ്തു!",
+                "success",
+              );
+            }
+            // ലോഗിൻ ചെയ്തിട്ടില്ലെങ്കിൽ -> ബ്രൗസറിലേക്ക് (Local Storage) ഇമ്പോർട്ട് ചെയ്യുന്നു
+            else {
+              localStorage.setItem(key, JSON.stringify(importedData));
+              Swal.fire(
+                "Imported Locally 💻",
+                "ഫയൽ ബ്രൗസറിലേക്ക് വിജയകരമായി ഇമ്പോർട്ട് ചെയ്തു!",
+                "success",
+              );
             }
 
-            input.value = ""; // അടുത്ത തവണയും ഇമ്പോർട്ട് ചെയ്യാൻ പാകത്തിന് ഫീൽഡ് ക്ലിയർ ചെയ്യുന്നു
+            // ഡ്രോപ്പ്ഡൗൺ ലിസ്റ്റ് അപ്ഡേറ്റ് ആകാൻ വേണ്ടി വെയ്റ്റ് ചെയ്യുന്നു
+            await updateIndentDropdown();
+
+            // ഡ്രോപ്പ്ഡൗണിൽ പുതിയ ഫയൽ സെലക്ട് ചെയ്ത ശേഷം അത് ലോഡ് ചെയ്യുന്നു
+            document.getElementById("savedIndentsList").value = key;
+            loadSelectedIndent();
+
+            // അടുത്ത തവണയും ഇതേ ഫയൽ സെലക്ട് ചെയ്യാൻ പാകത്തിന് ഇൻപുട്ട് ക്ലിയർ ചെയ്യുന്നു
+            input.value = "";
           } catch (error) {
-            console.error(error);
             Swal.fire(
-              "Error!",
-              "ഈ ഫയൽ ഇൻഡന്‍റ് മേക്കറിന് അനുയോജ്യമല്ല.",
+              "Error",
+              "ഫയൽ റീഡ് ചെയ്യുന്നതിൽ എറർ: " + error.message,
               "error",
             );
+            input.value = "";
           }
         };
+
+        // ഫയൽ റീഡ് ചെയ്യാൻ തുടങ്ങുന്നു
         reader.readAsText(file);
       }
       let currentMin = 0;
