@@ -1982,7 +1982,6 @@
 
         if (result.isConfirmed) {
           try {
-            // ഡിലീറ്റ് ആകാൻ കുറച്ചു സമയം എടുക്കുന്നതുകൊണ്ട് ഒരു ലോഡിങ് ബോക്സ് കാണിക്കുന്നു
             Swal.fire({
               title: "Deleting...",
               text: "അക്കൗണ്ടും ഡാറ്റയും ഡിലീറ്റ് ചെയ്യുന്നു ☁️...",
@@ -1990,20 +1989,32 @@
               didOpen: () => Swal.showLoading(),
             });
 
-            // 1. ഡാറ്റാബേസിൽ (Firestore) നിന്നും യൂസറുടെ മുഴുവൻ ഇൻഡന്റുകളും ആദ്യം ഡിലീറ്റ് ചെയ്യുന്നു
+            const uid = currentUser.uid;
+            const deletePromises = [];
+
+            // 1. indents ഫോൾഡറിലെ ഫയലുകൾ ഡിലീറ്റ് ചെയ്യുന്നു
             const indentsRef = db
               .collection("users")
-              .doc(currentUser.uid)
+              .doc(uid)
               .collection("indents");
-            const snapshot = await indentsRef.get();
+            const indentsSnap = await indentsRef.get();
+            indentsSnap.forEach((doc) => deletePromises.push(doc.ref.delete()));
 
-            const deletePromises = [];
-            snapshot.forEach((doc) => {
-              deletePromises.push(doc.ref.delete());
-            });
-            await Promise.all(deletePromises); // എല്ലാ ഫയലുകളും ഡിലീറ്റ് ആകുന്നതുവരെ കാത്തിരിക്കുന്നു
+            // 2. auto_draft ഫോൾഡറിലെ ഫയലുകൾ ഡിലീറ്റ് ചെയ്യുന്നു (നേരത്തെ വിട്ടുപോയ ഭാഗം)
+            const draftsRef = db
+              .collection("users")
+              .doc(uid)
+              .collection("auto_draft");
+            const draftsSnap = await draftsRef.get();
+            draftsSnap.forEach((doc) => deletePromises.push(doc.ref.delete()));
 
-            // 2. ഫയലുകൾ എല്ലാം പോയ ശേഷം മാത്രം യൂസറുടെ അക്കൗണ്ട് (Authentication) ഡിലീറ്റ് ചെയ്യുന്നു
+            // എല്ലാ ഫയലുകളും ഡിലീറ്റ് ആകുന്നതുവരെ കാത്തിരിക്കുന്നു
+            await Promise.all(deletePromises);
+
+            // 3. കാലിയായ ആ യൂസറുടെ മെയിൻ ഡോക്യുമെന്റ് കൂടി ഡിലീറ്റ് ചെയ്യുന്നു
+            await db.collection("users").doc(uid).delete();
+
+            // 4. അവസാനം യൂസറുടെ ലോഗിൻ അക്കൗണ്ട് ഡിലീറ്റ് ചെയ്യുന്നു
             await currentUser.delete();
 
             Swal.fire({
