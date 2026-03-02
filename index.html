@@ -1929,25 +1929,29 @@
       });
 
       // 4. ഗൂഗിൾ വഴി ലോഗിൻ ചെയ്യാനുള്ള ഫംഗ്ഷൻ (സ്റ്റാറ്റസ് ബാറിൽ ക്ലിക്ക് ചെയ്യുമ്പോൾ വർക്ക് ആകും)
+      // നിർബന്ധമായും ഗൂഗിൾ ഐഡി ചോദിക്കുന്ന ലോഗിൻ ഫംഗ്ഷൻ (Clean Code)
       function loginWithGoogle() {
         const provider = new firebase.auth.GoogleAuthProvider();
-        auth
+
+        // MAGIC TRICK 🪄: ഈ ഒറ്റ വരിയാണ് എപ്പോഴും അക്കൗണ്ട് സെലക്ട് ചെയ്യാൻ ഗൂഗിളിനെ നിർബന്ധിക്കുന്നത്
+        provider.setCustomParameters({ prompt: "select_account" });
+
+        firebase
+          .auth()
           .signInWithPopup(provider)
           .then((result) => {
+            // ലോഗിൻ ആയാൽ സ്വീറ്റ് അലർട്ട് കാണിക്കാൻ
             Swal.fire({
               icon: "success",
-              title: "ലോഗിൻ വിജയിച്ചു!",
-              text: `സ്വാഗതം ${result.user.displayName}. ഇനി ഇൻഡന്റുകൾ ക്ലൗഡിൽ സുരക്ഷിതമായി സേവ് ചെയ്യാം.`,
-              timer: 3000,
+              title: "Logged In!",
+              text: `Welcome ${result.user.displayName}`,
+              timer: 2000,
               showConfirmButton: false,
             });
           })
           .catch((error) => {
-            Swal.fire(
-              "Error",
-              "ലോഗിൻ പരാജയപ്പെട്ടു: " + error.message,
-              "error",
-            );
+            console.error("Login failed: ", error);
+            Swal.fire("Login Failed", error.message, "error");
           });
       }
 
