@@ -1915,14 +1915,14 @@
         const statusBar = document.getElementById("cloud-status-bar");
 
         if (user) {
-          // യൂസർ ലോഗിൻ ചെയ്തിട്ടുണ്ടെങ്കിൽ
           currentUser = user;
-          statusBar.innerHTML = `🟢 Synced to Cloud as <b>${user.displayName}</b> <span style="cursor: pointer; color: #d9534f; text-decoration: underline; margin-left: 10px;" onclick="logoutFromCloud()">[Logout]</span>`;
+          // ലോഗൗട്ടിന്റെ കൂടെ Delete Account ബട്ടൺ കൂടി ചേർക്കുന്നു
+          statusBar.innerHTML = `🟢 Synced to Cloud as <b>${user.displayName}</b> 
+      <span style="cursor: pointer; color: #ff9800; text-decoration: underline; margin-left: 10px;" onclick="logoutFromCloud()">[Logout]</span>
+      <span style="cursor: pointer; color: #d9534f; text-decoration: underline; margin-left: 10px;" onclick="deleteMyAccount()">[Delete Account]</span>`;
 
-          // ലോഗിൻ ചെയ്യുമ്പോൾ മാത്രം ക്ലൗഡിൽ നിന്നുള്ള ഫയലുകൾ ലോഡ് ചെയ്യാൻ ഇവിടെ കോഡ് വെക്കും (അടുത്ത ഘട്ടത്തിൽ)
           updateIndentDropdown();
         } else {
-          // യൂസർ ലോഗിൻ ചെയ്തിട്ടില്ലെങ്കിൽ
           currentUser = null;
           statusBar.innerHTML = `🔴 Cloud Sync Offline <span style="cursor: pointer; color: #007bff; text-decoration: underline; margin-left: 5px;" onclick="loginWithGoogle()">[Login to Cloud]</span>`;
         }
@@ -1965,8 +1965,75 @@
           setTimeout(() => location.reload(), 2000);
         });
       }
+      //6. യൂസറുടെ അക്കൗണ്ട് പൂർണ്ണമായും ഡിലീറ്റ് ചെയ്യാനുള്ള ഫംഗ്ഷൻ
+      async function deleteMyAccount() {
+        if (!currentUser) return;
+
+        const result = await Swal.fire({
+          title: "അക്കൗണ്ട് ഡിലീറ്റ് ചെയ്യണോ?",
+          text: "നിങ്ങളുടെ അക്കൗണ്ടും ക്ലൗഡിൽ സേവ് ചെയ്ത മുഴുവൻ ഡാറ്റയും എന്നെന്നേക്കുമായി നഷ്ടപ്പെടും. ഇത് പിന്നീട് തിരിച്ചെടുക്കാൻ കഴിയില്ല!",
+          icon: "error",
+          showCancelButton: true,
+          confirmButtonColor: "#d33",
+          cancelButtonColor: "#3085d6",
+          confirmButtonText: "അതെ, ഡിലീറ്റ് ചെയ്യുക! 🗑️",
+          cancelButtonText: "വേണ്ട",
+        });
+
+        if (result.isConfirmed) {
+          try {
+            // ഡിലീറ്റ് ആകാൻ കുറച്ചു സമയം എടുക്കുന്നതുകൊണ്ട് ഒരു ലോഡിങ് ബോക്സ് കാണിക്കുന്നു
+            Swal.fire({
+              title: "Deleting...",
+              text: "അക്കൗണ്ടും ഡാറ്റയും ഡിലീറ്റ് ചെയ്യുന്നു ☁️...",
+              allowOutsideClick: false,
+              didOpen: () => Swal.showLoading(),
+            });
+
+            // 1. ഡാറ്റാബേസിൽ (Firestore) നിന്നും യൂസറുടെ മുഴുവൻ ഇൻഡന്റുകളും ആദ്യം ഡിലീറ്റ് ചെയ്യുന്നു
+            const indentsRef = db
+              .collection("users")
+              .doc(currentUser.uid)
+              .collection("indents");
+            const snapshot = await indentsRef.get();
+
+            const deletePromises = [];
+            snapshot.forEach((doc) => {
+              deletePromises.push(doc.ref.delete());
+            });
+            await Promise.all(deletePromises); // എല്ലാ ഫയലുകളും ഡിലീറ്റ് ആകുന്നതുവരെ കാത്തിരിക്കുന്നു
+
+            // 2. ഫയലുകൾ എല്ലാം പോയ ശേഷം മാത്രം യൂസറുടെ അക്കൗണ്ട് (Authentication) ഡിലീറ്റ് ചെയ്യുന്നു
+            await currentUser.delete();
+
+            Swal.fire({
+              icon: "success",
+              title: "Deleted!",
+              text: "നിങ്ങളുടെ അക്കൗണ്ടും ഡാറ്റയും വിജയകരമായി ഡിലീറ്റ് ചെയ്തു.",
+              timer: 3000,
+              showConfirmButton: false,
+            });
+
+            setTimeout(() => location.reload(), 2000);
+          } catch (error) {
+            if (error.code === "auth/requires-recent-login") {
+              Swal.fire(
+                "സുരക്ഷാ മുന്നറിയിപ്പ്",
+                "അക്കൗണ്ട് ഡിലീറ്റ് ചെയ്യാൻ, ദയവായി ഒന്ന് ലോഗൗട്ട് ചെയ്ത ശേഷം വീണ്ടും ലോഗിൻ ചെയ്ത് ശ്രമിക്കുക.",
+                "warning",
+              );
+            } else {
+              Swal.fire(
+                "Error",
+                "അക്കൗണ്ട് ഡിലീറ്റ് ചെയ്യാൻ കഴിഞ്ഞില്ല: " + error.message,
+                "error",
+              );
+            }
+          }
+        }
+      }
       (function autoUpdateCache() {
-        const currentAppVersion = "4.2";
+        const currentAppVersion = "5.1";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
