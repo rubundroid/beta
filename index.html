@@ -1418,9 +1418,9 @@
           <label class="input-label">Institution Name & Address:</label>
           <textarea
             id="inst-details"
-            rows="2"
+            rows="3"
             placeholder="Name of institution...,&#10;District...,&#10;Localbody..."
-            oninput="saveDraft()"
+            oninput="limitAddressText(event)"
           ></textarea>
         </div>
         <div class="input-wrapper indent-section">
@@ -1434,6 +1434,7 @@
               type="text"
               id="indent-type"
               placeholder="Type here..."
+              maxlength="30"
               oninput="saveDraft()"
               style="display: none"
             />
@@ -2048,7 +2049,7 @@
         }
       }
       (function autoUpdateCache() {
-        const currentAppVersion = "5.1";
+        const currentAppVersion = "5.2";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
@@ -7201,6 +7202,28 @@
         if (typeBtn) {
           typeBtn.innerText = "NEW ADDED ▾";
         }
+      }
+      // അഡ്രസ്സ് ടൈപ്പ് ചെയ്യുന്നത് 3 വരികളായും 40 അക്ഷരങ്ങളായും ചുരുക്കാനുള്ള ഫംഗ്ഷൻ
+      function limitAddressText(e) {
+        const maxLines = 3; // പരമാവധി 3 വരികൾ
+        const maxCharsPerLine = 50; // ഒരു വരിയിൽ പരമാവധി 40 അക്ഷരങ്ങൾ
+
+        let text = e.target.value;
+        let lines = text.split("\n");
+
+        // 3 വരികളിൽ കൂടിയാൽ ബാക്കിയുള്ളവ കട്ട് ചെയ്തു കളയുന്നു
+        if (lines.length > maxLines) {
+          lines = lines.slice(0, maxLines);
+        }
+
+        // ഓരോ വരിയിലെയും അക്ഷരങ്ങൾ 40-ൽ കൂടിയാൽ കട്ട് ചെയ്യുന്നു
+        lines = lines.map((line) => line.substring(0, maxCharsPerLine));
+
+        // തിരികെ Textarea-ലേക്ക് സെറ്റ് ചെയ്യുന്നു
+        e.target.value = lines.join("\n");
+
+        // ഡാറ്റ ബാക്ക്ഗ്രൗണ്ടിൽ സേവ് ആകാൻ പഴയ ഫംഗ്ഷൻ വിളിക്കുന്നു
+        if (typeof saveDraft === "function") saveDraft();
       }
     </script>
   </body>
