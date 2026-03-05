@@ -949,25 +949,58 @@
         text-transform: uppercase;
       }
 
-      /* Button Colors */
+      /* Button Base Colors */
+      .btn-save {
+        background-color: #28a745;
+        color: white; /* അക്ഷരങ്ങൾ വെളുത്ത നിറത്തിൽ നിൽക്കാൻ */
+        transition: all 0.3s ease; /* ഹോവർ ഇഫക്റ്റ് സ്മൂത്ത് ആക്കാൻ */
+      }
+
       .btn-load {
         background-color: #27ae60;
+        transition: all 0.3s ease;
       }
 
-      /* Green */
       .btn-del {
         background-color: #c0392b;
+        transition: all 0.3s ease;
       }
 
-      /* Red */
       .btn-json {
         background-color: #2980b9;
+        transition: all 0.3s ease;
       }
 
-      /* Blue */
       .btn-import {
         background-color: #7f8c8d;
         margin-bottom: 0;
+        transition: all 0.3s ease;
+      }
+
+      /* Hover Effects (മൗസ് കൊണ്ടുപോകുമ്പോഴുള്ള മാറ്റം) */
+      .btn-save:hover {
+        background-color: #218838;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-load:hover {
+        background-color: #219a52;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-del:hover {
+        background-color: #a53125;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-json:hover {
+        background-color: #2471a3;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn-import:hover {
+        background-color: #6c7a89;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       }
 
       /* Grey */
@@ -1506,11 +1539,7 @@
             placeholder="File Name"
             class="fm-input"
           />
-          <button
-            onclick="saveNewIndent()"
-            class="btn-action btn-save"
-            style="background-color: #28a745; color: white"
-          >
+          <button onclick="saveNewIndent()" class="btn-action btn-save">
             SAVE 💾
           </button>
           <button onclick="exportToJson()" class="btn-action btn-json">
@@ -2049,7 +2078,7 @@
         }
       }
       (function autoUpdateCache() {
-        const currentAppVersion = "5.2";
+        const currentAppVersion = "6";
         const savedAppVersion = localStorage.getItem("indentMakerVersion");
 
         if (savedAppVersion !== currentAppVersion) {
