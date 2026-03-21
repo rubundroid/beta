@@ -665,7 +665,8 @@
       .contact-grid {
         display: grid;
         /* രണ്ട് കോളമായി കൃത്യം പകുതി വീതം തിരിക്കുന്നു (Side-by-side) */
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
+        justify-content: center;
         gap: 10px;
         margin-top: 10px;
       }
@@ -706,8 +707,12 @@
       }
 
       .contact-info {
-        text-align: left;
-        line-height: 1.1;
+        display: flex;
+        flex-direction: column; /* <span> ടാഗുകൾ താഴെ താഴെ വരാൻ */
+        text-align: left; /* സാറിന്റെ കോഡ് */
+        line-height: 1.1; /* സാറിന്റെ കോഡ് */
+        margin-left: 8px;
+        color: #333;
       }
 
       .contact-name {
@@ -1315,7 +1320,7 @@
                 alt="WA"
               />
               <div class="contact-info">
-                <span class="contact-name">Ramakrishnan K</span>
+                <span class="contact-name">Ramakrishnan</span>
                 <span class="contact-number">9605081081</span>
               </div>
             </a>
@@ -1331,8 +1336,24 @@
                 alt="WA"
               />
               <div class="contact-info">
-                <span class="contact-name">Sumesh T.K</span>
+                <span class="contact-name">Sumesh</span>
                 <span class="contact-number">9447596675</span>
+              </div>
+            </a>
+            <a
+              href="https://wa.me/919946479273?text=Hi%20Pratheesh,%20I%20need%20help%20with%20Indent%20Maker"
+              target="_blank"
+              class="wa-chat-link"
+            >
+              <img
+                src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg"
+                width="20"
+                height="20"
+                alt="WA"
+              />
+              <div class="contact-info">
+                <span class="contact-name">Pratheesh</span>
+                <span class="contact-number">9946479273</span>
               </div>
             </a>
           </div>
