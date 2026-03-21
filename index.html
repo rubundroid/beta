@@ -664,14 +664,21 @@
 
       .contact-grid {
         display: grid;
-        /* രണ്ട് കോളമായി കൃത്യം പകുതി വീതം തിരിക്കുന്നു (Side-by-side) */
-        grid-template-columns: repeat(3, 1fr);
-        justify-content: center;
-        gap: 10px;
-        margin-top: 10px;
+        /* രണ്ട് കോളമായി തിരിക്കുന്നു (കൂടുതൽ ഒതുങ്ങാൻ) */
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-top: 8px;
       }
 
-      /* (പഴയ മൂന്നാമത്തെ ആളുടെ കോഡ് പൂർണ്ണമായും ഒഴിവാക്കി) */
+      /* മൂന്നാമത്തെ ആളെ നടുക്ക് കൊണ്ടുവരാൻ */
+      .contact-grid > a:last-child {
+        grid-column: span 2;
+        /* ബാക്കിയുള്ള ആൾ വരി ഫുൾ എടുക്കും */
+        width: 60%;
+        /* പക്ഷെ നീളം കുറച്ച് */
+        margin: 0 auto;
+        /* നടുക്ക് നിൽക്കും */
+      }
 
       .wa-chat-link {
         display: flex;
@@ -1320,7 +1327,7 @@
                 alt="WA"
               />
               <div class="contact-info">
-                <span class="contact-name">Ramakrishnan</span>
+                <span class="contact-name">Ramakrishnan. K</span>
                 <span class="contact-number">9605081081</span>
               </div>
             </a>
@@ -1336,7 +1343,7 @@
                 alt="WA"
               />
               <div class="contact-info">
-                <span class="contact-name">Sumesh</span>
+                <span class="contact-name">Sumesh. T. K</span>
                 <span class="contact-number">9447596675</span>
               </div>
             </a>
@@ -1352,7 +1359,7 @@
                 alt="WA"
               />
               <div class="contact-info">
-                <span class="contact-name">Pratheesh</span>
+                <span class="contact-name">Pratheesh. M.P</span>
                 <span class="contact-number">9946479273</span>
               </div>
             </a>
