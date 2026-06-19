@@ -2526,7 +2526,35 @@ RESPOND WITH ONLY THIS JSON — no markdown fences, no extra text:
         // ══════════════════════════════════════════════════════════════
         let phase2Meds = [];
         let strategy2 = '';
-
+        // ── POST-PROCESS: Manual fine-tune to close remaining gap ────
+        // AI gives rough proportions; this loop does paise-level precision
+        const budgetPaise = Math.round(budget * 100);
+        let curPaise = allMeds.reduce(
+          (s, m) => s + (m.newQty ?? m.qty) * Math.round(m.rate * 100), 0
+        );
+        let tuneLimit = 300;
+        while (Math.abs(budgetPaise - curPaise) > 49 && tuneLimit-- > 0) {
+          const diff = budgetPaise - curPaise;
+          if (diff > 0) {
+            // gap ബാക്കി — rate ≤ gap ആയ medicine-ൽ qty++
+            const best = allMeds
+              .filter(m => Math.round(m.rate * 100) <= diff)
+              .sort((a, b) => Math.round(b.rate * 100) - Math.round(a.rate * 100))[0];
+            if (!best) break;
+            best.newQty = (best.newQty ?? best.qty) + 1;
+            curPaise += Math.round(best.rate * 100);
+          } else {
+            // over budget — qty > 1 ആയ medicine-ൽ qty--
+            const absDiff = Math.abs(diff);
+            const best = allMeds
+              .filter(m => (m.newQty ?? m.qty) > 1 && Math.round(m.rate * 100) <= absDiff)
+              .sort((a, b) => Math.round(b.rate * 100) - Math.round(a.rate * 100))[0];
+            if (!best) break;
+            best.newQty = (best.newQty ?? best.qty) - 1;
+            curPaise -= Math.round(best.rate * 100);
+          }
+        }
+        // ── Fine-tune complete ───────────────────────────────────────
         if (phase1Balance > GAP_THRESHOLD && catalogMeds.length > 0) {
           Swal.close();
 
