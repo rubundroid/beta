@@ -1214,8 +1214,7 @@
       id="undo-autofill-btn" class="info-card" style="display:none; background: #d35400; cursor: pointer"
       onclick="undoAutoAdjust()"> UNDO AUTO FILL </button><button id="view-btn" class="info-card"
       style="background-color: #f39c12; cursor: pointer" onclick="toggleView()"> SHOW
-      SELECTED </button><button id="ml-toggle-btn" class="info-card"
-      style="background: #7f8c8d; cursor: pointer" onclick="toggleMlPdf()"> PDF: ENGLISH </button><button id="typeBtn" class="info-card" style="background: #2c3e50; cursor: pointer; width: 100%"
+      SELECTED </button><button id="typeBtn" class="info-card" style="background: #2c3e50; cursor: pointer; width: 100%"
       onclick="toggleCategoryMenu()"> TYPE ▾ </button>
     <div id="categoryMenu">
       <div class="cat-item" onclick="filterByCategory(0, 0, 'ALL')">ALL</div>
@@ -1476,7 +1475,6 @@
 
     let rawData = "";  // populated asynchronously from data.csv
     let mlNameMap = {};  // English name -> Malayalam name (from data.csv NameML column)
-    window.mlPdf = localStorage.getItem("indentMlPdf") === "1";
 
     // ── CSV DATA LOADER ─────────────────────────────────────────────
     // Fetches olddata.csv and data.csv from the same directory,
@@ -1639,7 +1637,7 @@
 
     function getSelectedItems() {const items = []; document.querySelectorAll("#product-body tr").forEach((row) => {const qtyInp = row.querySelector(".qty-input"); const qty = parseFloat(qtyInp.value) || 0; const rate = parseFloat(row.cells[3].innerText) || 0; const type = row.getAttribute("data-type") || ""; const slNo = parseInt(row.cells[0].innerText); if (qty > 0) {const calculatedCost = qty * rate; items.push({sl: slNo, name: row.cells[1].innerText, qty: qty, rate: rate.toFixed(2), cost: calculatedCost.toFixed(2), type: type, ml: row.getAttribute("data-ml") || "", })} }); return items}
     async function downloadSplitPDF() {
-      window.isSplitMode = !0; if (window.mlPdf) await loadMlFont(); let safeQueue = []; const pdfModal = document.getElementById("pdfModal"); if (pdfModal) {pdfModal.style.transition = "none"; pdfModal.style.opacity = "0"}
+      window.isSplitMode = !0; let safeQueue = []; const pdfModal = document.getElementById("pdfModal"); if (pdfModal) {pdfModal.style.transition = "none"; pdfModal.style.opacity = "0"}
       if (typeof Swal !== "undefined") {Swal.fire({title: "Generating PDFs...", text: "Please wait a moment", allowOutsideClick: !1, showConfirmButton: !1, didOpen: () => {Swal.showLoading()}, })}
       const viewBtn = document.getElementById("view-btn"); if (viewBtn && viewBtn.innerText.includes("SHOW ALL")) {toggleView()}
       if (typeof filterByCategory === "function") {filterByCategory(0, 9999, "ALL")}
@@ -1660,7 +1658,7 @@
       }, 600)
     }
     async function downloadCombinedPDF() {
-      window.isSplitMode = !1; if (window.mlPdf) await loadMlFont(); pdfQueue = []; const secondaryBtn = document.getElementById("summarySecondaryBtn"); if (secondaryBtn) {secondaryBtn.innerText = "EDIT MORE"; secondaryBtn.style.backgroundColor = "#e67e22"; secondaryBtn.onclick = closePDFModal}
+      window.isSplitMode = !1; pdfQueue = []; const secondaryBtn = document.getElementById("summarySecondaryBtn"); if (secondaryBtn) {secondaryBtn.innerText = "EDIT MORE"; secondaryBtn.style.backgroundColor = "#e67e22"; secondaryBtn.onclick = closePDFModal}
       const indentType = document.getElementById("indent-type").value || "Full_Indent"; const safeType = indentType.replace(/\//g, "-"); const fileNameFull = `${safeType}_Full_Indent`; const allData = getSelectedItems(); if (allData.length === 0)
         return alert("ദയവായി മരുന്നുകൾ തിരഞ്ഞെടുക്കുക!"); await createSinglePDF(allData, "Medicine Indent (Full List)", fileNameFull, "",)
     }
@@ -1677,18 +1675,6 @@
         ]);
       } catch (e) { console.log("ML font load:", e) }
     }
-    function toggleMlPdf() {
-      window.mlPdf = !window.mlPdf;
-      localStorage.setItem("indentMlPdf", window.mlPdf ? "1" : "0");
-      updateMlToggleUI();
-      if (window.mlPdf) loadMlFont();
-    }
-    function updateMlToggleUI() {
-      const b = document.getElementById("ml-toggle-btn"); if (!b) return;
-      b.innerText = window.mlPdf ? "PDF: മലയാളം" : "PDF: ENGLISH";
-      b.style.backgroundColor = window.mlPdf ? "#c0392b" : "#7f8c8d";
-    }
-    document.addEventListener("DOMContentLoaded", () => { updateMlToggleUI(); if (window.mlPdf) loadMlFont(); });
     function mlTableHooks(dataArray) {
       if (!dataArray.some((i) => i.ml)) return {};
       return {
@@ -1728,25 +1714,25 @@
       };
     }
     // ── END MALAYALAM NAME SUPPORT ──────────────────────────────────
-    function createSinglePDF(dataArray, subTitle, fileName, summaryText) {
+    function createSinglePDF(dataArray, subTitle, fileName, summaryText, opts) {
       pdfQueue = []; const {jsPDF} = window.jspdf; const doc = new jsPDF(); const inst = document.getElementById("inst-details").value || "Institution ....................."; const type = document.getElementById("indent-type").value || "................"; const budget = document.getElementById("total-budget").value || "0.00"; let totalTaxableValue = 0; let totalSGST = 0; let totalCGST = 0; let subTotalKC = 0; let subTotalPrep = 0; const tableRows = dataArray.map((item, index) => {
         const costWithGST = parseFloat(item.cost) || 0; const rateWithGST = parseFloat(item.rate) || 0; if (item.sl >= 418 && item.sl <= 567) {subTotalKC += costWithGST} else {subTotalPrep += costWithGST}
         const taxableRate = rateWithGST / 1.05; const taxableCost = costWithGST / 1.05; const totalGST = costWithGST - taxableCost; totalTaxableValue += taxableCost; totalSGST += totalGST / 2; totalCGST += totalGST / 2; let cleanName = item.name.replace(/✏️/g, "").replace(/🗑️/g, "").trim(); return [index + 1, cleanName, item.qty, taxableRate.toFixed(2), taxableCost.toFixed(2),]
-      }); doc.setFillColor(255, 255, 255); doc.rect(0, 0, 210, 25, "F"); doc.setTextColor(44, 62, 80); doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text(`${type.toUpperCase()} MEDICINE INDENT`, 105, 12, {align: "center", }); doc.setFontSize(11); doc.text(subTitle, 105, 19, {align: "center"}); doc.setLineWidth(0.5); doc.setDrawColor(0, 0, 0); doc.line(10, 26, 200, 26); doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text("Institution Details:", 14, 35); doc.setFont("helvetica", "normal"); doc.text(doc.splitTextToSize(inst, 100), 14, 40); doc.setFont("helvetica", "bold"); doc.text(`Budget: Rs. ${budget}`, 140, 35); const today = new Date(); const formattedDate = today.getDate().toString().padStart(2, "0") + "-" + (today.getMonth() + 1).toString().padStart(2, "0") + "-" + today.getFullYear(); doc.text(`Date: ${formattedDate}`, 140, 41); doc.autoTable({head: [["SL No", "Medicine Name", "Qty", "Rate (Excl.GST)", "Cost (Excl.GST)",],], body: tableRows, startY: 55, theme: "grid", headStyles: {fillColor: [44, 62, 80], textColor: [255, 255, 255], halign: "center", lineColor: [255, 255, 255], lineWidth: 0.2, }, bodyStyles: {textColor: [0, 0, 0], }, columnStyles: {0: {halign: "center", cellWidth: 12}, 2: {halign: "center", cellWidth: 20}, 3: {halign: "right", cellWidth: 35}, 4: {halign: "right", cellWidth: 40}, }, styles: {fontSize: 9, cellPadding: 3, lineColor: [139, 69, 19], neWidth: 0.3, }, ...(window.mlPdf ? mlTableHooks(dataArray) : {}), }); let finalY = doc.lastAutoTable.finalY + 10; const grandTotal = totalTaxableValue + totalSGST + totalCGST; if (finalY > 240) {doc.addPage(); finalY = 25}
+      }); doc.setFillColor(255, 255, 255); doc.rect(0, 0, 210, 25, "F"); doc.setTextColor(44, 62, 80); doc.setFontSize(16); doc.setFont("helvetica", "bold"); doc.text(`${type.toUpperCase()} MEDICINE INDENT`, 105, 12, {align: "center", }); doc.setFontSize(11); doc.text(subTitle, 105, 19, {align: "center"}); doc.setLineWidth(0.5); doc.setDrawColor(0, 0, 0); doc.line(10, 26, 200, 26); doc.setTextColor(0, 0, 0); doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text("Institution Details:", 14, 35); doc.setFont("helvetica", "normal"); doc.text(doc.splitTextToSize(inst, 100), 14, 40); doc.setFont("helvetica", "bold"); doc.text(`Budget: Rs. ${budget}`, 140, 35); const today = new Date(); const formattedDate = today.getDate().toString().padStart(2, "0") + "-" + (today.getMonth() + 1).toString().padStart(2, "0") + "-" + today.getFullYear(); doc.text(`Date: ${formattedDate}`, 140, 41); doc.autoTable({head: [["SL No", "Medicine Name", "Qty", "Rate (Excl.GST)", "Cost (Excl.GST)",],], body: tableRows, startY: 55, theme: "grid", headStyles: {fillColor: [44, 62, 80], textColor: [255, 255, 255], halign: "center", lineColor: [255, 255, 255], lineWidth: 0.2, }, bodyStyles: {textColor: [0, 0, 0], }, columnStyles: {0: {halign: "center", cellWidth: 12}, 2: {halign: "center", cellWidth: 20}, 3: {halign: "right", cellWidth: 35}, 4: {halign: "right", cellWidth: 40}, }, styles: {fontSize: 9, cellPadding: 3, lineColor: [139, 69, 19], neWidth: 0.3, }, ...(opts && opts.ml ? mlTableHooks(dataArray) : {}), }); let finalY = doc.lastAutoTable.finalY + 10; const grandTotal = totalTaxableValue + totalSGST + totalCGST; if (finalY > 240) {doc.addPage(); finalY = 25}
       doc.setFont("helvetica", "normal"); doc.setFontSize(9); doc.text(`Total Taxable Value: Rs. ${totalTaxableValue.toFixed(2)}`, 196, finalY, {align: "right"},); finalY += 5; doc.text(`SGST (2.5%): Rs. ${totalSGST.toFixed(2)}`, 196, finalY, {align: "right", }); finalY += 5; doc.text(`CGST (2.5%): Rs. ${totalCGST.toFixed(2)}`, 196, finalY, {align: "right", }); finalY += 7; doc.setFont("helvetica", "bold"); doc.setFontSize(10); let totalLabel = "GRAND TOTAL"; if (subTitle.includes("KC")) {totalLabel = "KC+KSC GRAND TOTAL"} else if (subTitle.includes("Prepared")) {totalLabel = "PREPARED MEDICINE GRAND TOTAL"}
       doc.text(`${totalLabel} (INCL. GST): Rs. ${grandTotal.toFixed(2)}`, 196, finalY, {align: "right"},); if (summaryText) {finalY += 7; doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text(summaryText, 196, finalY, {align: "right"})}
       finalY += 7; doc.setFontSize(8); doc.setFont("helvetica", "bold"); doc.text(`* This indent is prepared for the budget of Rs. ${budget}`, 196, finalY, {align: "right"},); const totalPages = doc.internal.getNumberOfPages(); for (let i = 1; i <= totalPages; i++) {doc.setPage(i); doc.setFontSize(10); doc.setTextColor(150); doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() / 2, doc.internal.pageSize.getHeight() - 10, {align: "center"},)}
-      showPDFPreview("", fileName, doc); return new Promise((resolve) => {window.resolveCurrentPDF = resolve})
+      if (opts && opts.returnDoc) return doc; window.__lastPdfArgs = [dataArray, subTitle, fileName, summaryText]; showPDFPreview("", fileName, doc); return new Promise((resolve) => {window.resolveCurrentPDF = resolve})
     }
     let currentDoc = null; let currentFileName = ""; let pdfQueue = []; let currentPreviewType = "ALL"; function showPDFPreview(blobURL, fileName, doc) {
-      pdfQueue.push({doc: doc, name: fileName}); if (window.isSplitMode) {if (fileName.toUpperCase().includes("KC")) {currentPreviewType = "KC"} else {currentPreviewType = "PREPARED"} } else {currentPreviewType = "ALL"}
+      pdfQueue.push({doc: doc, name: fileName, args: window.__lastPdfArgs}); if (window.isSplitMode) {if (fileName.toUpperCase().includes("KC")) {currentPreviewType = "KC"} else {currentPreviewType = "PREPARED"} } else {currentPreviewType = "ALL"}
       renderPreviewTable(currentPreviewType)
     }
     function renderPreviewTable(type) {
       const modal = document.getElementById("pdfModal"); const previewArea = document.getElementById("pdfPreviewContent"); previewArea.innerHTML = ""; const rows = document.querySelectorAll(".med-row"); let subTotal = 0; let tableRows = ""; let itemCount = 0; rows.forEach((row) => {
         const qty = parseFloat(row.querySelector(".qty-input").value) || 0; if (qty > 0) {
           const rowType = row.getAttribute("data-type"); const isKCItem = rowType === "KC" || rowType === "KSC"; let shouldShow = !1; if (type === "ALL") shouldShow = !0; else if (type === "KC" && isKCItem) shouldShow = !0; else if (type === "PREPARED" && !isKCItem) shouldShow = !0; if (shouldShow) {
-            itemCount++; const nameCell = row.querySelector(".med-name"); const name = (window.mlPdf && row.getAttribute("data-ml")) || nameCell.childNodes[0].textContent.trim(); const cost = parseFloat(row.querySelector(".row-cost").innerText.replace(/,/g, ""),) || 0; subTotal += cost; tableRows += `
+            itemCount++; const nameCell = row.querySelector(".med-name"); const name = nameCell.childNodes[0].textContent.trim(); const cost = parseFloat(row.querySelector(".row-cost").innerText.replace(/,/g, ""),) || 0; subTotal += cost; tableRows += `
                       <tr style="border-bottom: 1px solid #eee;">
       <td style="border: 1px solid #ddd; padding: 6px 4px; word-break: break-word; line-height: 1.2; text-align: left;">${name}</td>
       <td style="border: 1px solid #ddd; padding: 6px 4px; text-align: center; font-weight: bold;">${qty}</td>
@@ -1756,18 +1742,28 @@
       }); let sectionTitle = "", sectionColor = "#2c3e50", actionButtons = ""; if (type === "ALL") {
         sectionTitle = "COMBINED ORDER LIST"; sectionColor = "#2c3e50"; actionButtons = `
               <div style="margin-top: 10px;">
+                   <div style="display: flex; gap: 8px;">
                    <button onclick="downloadSpecificPDF(0)"
-                      style="width: 100%; padding: 12px; background: #2980b9; color: white; border: none; font-weight: bold; border-radius: 5px;">
-                      SAVE / DOWNLOAD PDF ↓
+                      style="flex: 1; padding: 12px; background: #2980b9; color: white; border: none; font-weight: bold; border-radius: 5px;">
+                      ENG PDF ↓
                   </button>
+                   <button onclick="downloadSpecificPDF(0, true)"
+                      style="flex: 1; padding: 12px; background: #c0392b; color: white; border: none; font-weight: bold; border-radius: 5px;">
+                      മലയാളം PDF ↓
+                  </button></div>
               </div>`} else {
         if (type === "KC") {
           sectionTitle = "KASHAYA CHOORNAM (KC)"; sectionColor = "#8e44ad"; actionButtons = `
                   <div style="display: flex; gap: 8px; margin-top: 10px;">
                       <button onclick="downloadSpecificPDFByContent('KC')"
                           style="flex: 1; padding: 12px; background: #8e44ad; color: white; border: none; font-weight: bold; border-radius: 5px;">
-                          SAVE KC PDF ↓
+                          KC ENG PDF ↓
                       </button>
+                      <button onclick="downloadSpecificPDFByContent('KC', true)"
+                          style="flex: 1; padding: 12px; background: #c0392b; color: white; border: none; font-weight: bold; border-radius: 5px;">
+                          KC മലയാളം ↓
+                      </button></div>
+                  <div style="display: flex; gap: 8px; margin-top: 8px;">
                       <button onclick="renderPreviewTable('PREPARED')"
                           style="flex: 1; padding: 12px; background: #27ae60; color: white; border: none; font-weight: bold; border-radius: 5px;">
                           VIEW PREPARED →
@@ -1775,13 +1771,18 @@
                   </div>`} else {
           sectionTitle = "PREPARED MEDICINES"; sectionColor = "#27ae60"; actionButtons = `
                   <div style="display: flex; gap: 8px; margin-top: 10px;">
+                      <button onclick="downloadSpecificPDFByContent('PREPARED')"
+                          style="flex: 1; padding: 12px; background: #27ae60; color: white; border: none; font-weight: bold; border-radius: 5px;">
+                          PREP. ENG PDF ↓
+                      </button>
+                      <button onclick="downloadSpecificPDFByContent('PREPARED', true)"
+                          style="flex: 1; padding: 12px; background: #c0392b; color: white; border: none; font-weight: bold; border-radius: 5px;">
+                          PREP. മലയാളം ↓
+                      </button></div>
+                  <div style="display: flex; gap: 8px; margin-top: 8px;">
                        <button onclick="renderPreviewTable('KC')"
                           style="flex: 1; padding: 12px; background: #8e44ad; color: white; border: none; font-weight: bold; border-radius: 5px;">
                           ← VIEW KC
-                      </button>
-                      <button onclick="downloadSpecificPDFByContent('PREPARED')"
-                          style="flex: 1; padding: 12px; background: #27ae60; color: white; border: none; font-weight: bold; border-radius: 5px;">
-                          SAVE PREP. PDF ↓
                       </button>
                   </div>`}
       }
@@ -1806,12 +1807,12 @@
               <div style="padding: 8px;">${actionButtons}</div>
           </div>`; modal.style.display = "block"; const mainDownloadBtn = document.querySelector('button[onclick="downloadActualPDF()"]',); if (mainDownloadBtn) mainDownloadBtn.style.display = "none"
     }
-    function downloadSpecificPDFByContent(type) {
+    function downloadSpecificPDFByContent(type, ml) {
       let targetIndex = -1; for (let i = pdfQueue.length - 1; i >= 0; i--) {let fileName = pdfQueue[i].name.toUpperCase(); if (type === "KC") {if (fileName.includes("KC") && !fileName.includes("PREP")) {targetIndex = i; break} } else if (type === "PREPARED") {if (fileName.includes("PREP")) {targetIndex = i; break} } }
       if (targetIndex === -1 && pdfQueue.length >= 2) {if (type === "KC") {targetIndex = pdfQueue.length - 2} else if (type === "PREPARED") {targetIndex = pdfQueue.length - 1} }
-      if (targetIndex !== -1 && pdfQueue[targetIndex]) {downloadSpecificPDF(targetIndex)} else {let availableFiles = pdfQueue.map((p) => p.name).join(" | "); alert("അറിയിപ്പ്: " + type + " ഫയൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല. നിലവിലുള്ള ഫയലുകൾ: " + availableFiles,)}
+      if (targetIndex !== -1 && pdfQueue[targetIndex]) {downloadSpecificPDF(targetIndex, ml)} else {let availableFiles = pdfQueue.map((p) => p.name).join(" | "); alert("അറിയിപ്പ്: " + type + " ഫയൽ കണ്ടെത്താൻ കഴിഞ്ഞില്ല. നിലവിലുള്ള ഫയലുകൾ: " + availableFiles,)}
     }
-    function downloadSpecificPDF(index) {const item = pdfQueue[index]; if (item && item.doc) {const instFull = document.getElementById("inst-details").value || "INDENT"; const instFirstLine = instFull.split("\n")[0].substring(0, 15).trim().replace(/\s+/g, "_"); const now = new Date(); const timeStamp = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getFullYear()).slice(-2)}-${String(now.getHours()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}-${String(now.getMilliseconds()).padStart(3, "0")}`; const finalFileName = `${instFirstLine}_${item.name}_${timeStamp}.pdf`; item.doc.save(finalFileName)} }
+    async function downloadSpecificPDF(index, ml) {const item = pdfQueue[index]; if (item && item.doc) {const instFull = document.getElementById("inst-details").value || "INDENT"; const instFirstLine = instFull.split("\n")[0].substring(0, 15).trim().replace(/\s+/g, "_"); const now = new Date(); const timeStamp = `${String(now.getDate()).padStart(2, "0")}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getFullYear()).slice(-2)}-${String(now.getHours()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}-${String(now.getMilliseconds()).padStart(3, "0")}`; let outDoc = item.doc, nameTag = ""; if (ml && item.args) {const savedQueue = pdfQueue; try {await loadMlFont(); outDoc = createSinglePDF(item.args[0], item.args[1], item.args[2], item.args[3], {ml: true, returnDoc: true}); nameTag = "_Malayalam"} catch (e) {console.error("ML PDF error:", e); alert("മലയാളം PDF ഉണ്ടാക്കാൻ കഴിഞ്ഞില്ല. ENG PDF ഉപയോഗിക്കുക."); return} finally {pdfQueue = savedQueue} } const finalFileName = `${instFirstLine}_${item.name}${nameTag}_${timeStamp}.pdf`; outDoc.save(finalFileName)} }
     function switchTab(index) {document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active")); document.querySelectorAll(".summary-content").forEach((c) => c.classList.remove("active")); const selectedBtn = document.getElementById(`tab-btn-${index}`); selectedBtn.classList.add("active"); document.getElementById(`tab-content-${index}`).classList.add("active"); const downloadBtn = document.querySelector('button[onclick="downloadActualPDF()"]',); if (downloadBtn) {downloadBtn.innerText = `DOWNLOAD ${selectedBtn.innerText.split(" (")[0]}`} }
     function downloadActualPDF() {const activeTabBtn = document.querySelector(".tab-btn.active"); if (!activeTabBtn) return; const index = parseInt(activeTabBtn.id.replace("tab-btn-", "")); const item = pdfQueue[index]; if (item && item.doc) {const instFull = document.getElementById("inst-details").value || "INDENT"; const instFirstLine = instFull.split("\n")[0].substring(0, 15).trim().replace(/\s+/g, "_"); const now = new Date(); const d = String(now.getDate()).padStart(2, "0"); const m = String(now.getMonth() + 1).padStart(2, "0"); const y = String(now.getFullYear()).slice(-2); const h = String(now.getHours()).padStart(2, "0"); const s = String(now.getSeconds()).padStart(2, "0"); const ms = String(now.getMilliseconds()).padStart(3, "0"); const timeStamp = `${d}-${m}-${y}-${h}-${s}-${ms}`; const finalFileName = `${instFirstLine}_${item.name}_${timeStamp}.pdf`; item.doc.save(finalFileName)} }
     function closePDFModal() {
